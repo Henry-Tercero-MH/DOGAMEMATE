@@ -1,0 +1,114 @@
+.tug-characters {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 8px 0 0 0;
+  position: relative;
+  min-height: 130px;
+}
+
+.tug-char {
+  width: 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+}
+
+.tug-char-left {
+  transform-origin: right center;
+}
+
+.tug-char-right {
+  transform-origin: left center;
+}
+
+/* ─── PNG character wrapper ─── */
+.char-img-wrapper {
+  width: 95px;
+  height: 120px;
+  border-radius: 18px;
+  border: 3px solid rgba(167, 139, 250, 0.4);
+  background: rgba(30, 24, 64, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.4));
+}
+
+.char-img-wrapper.flipped {
+  transform: scaleX(-1);
+}
+
+.char-png {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* ─── Cuerda visual entre personajes ─── */
+.tug-rope-line {
+  flex: 1;
+  max-width: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  margin: 0 -15px;
+  padding-top: 40px;
+}
+
+.rope-visual {
+  width: 100%;
+  text-align: center;
+}
+
+.rope-segment-char {
+  font-size: 1.4rem;
+  color: #C4A882;
+  letter-spacing: -0.15em;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  font-weight: bold;
+  user-select: none;
+}
+
+/* ─── Effort indicators ─── */
+.effort-indicator {
+  display: flex;
+  gap: 2px;
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.effort-spark {
+  font-size: 0.9rem;
+  display: inline-block;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 500px) {
+  .tug-characters {
+    min-height: 100px;
+  }
+
+  .char-img-wrapper {
+    width: 70px;
+    height: 90px;
+    border-radius: 14px;
+  }
+
+  .tug-rope-line {
+    max-width: 100px;
+  }
+
+  .rope-segment-char {
+    font-size: 1rem;
+  }
+}
