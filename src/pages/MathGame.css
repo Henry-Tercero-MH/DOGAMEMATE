@@ -6,6 +6,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
 
 /* ─── Color Variables ─────────────────────────────────────── */
+
 :root {
   --bg-deep: #1B1438;
   --bg-mid: #251E4A;
@@ -15,14 +16,9 @@
 
   --purple-main: #A78BFA;
   --purple-light: #C4B5FD;
-  --purple-dark: #7C3AED;
-  --pink-main: #F472B6;
-  --pink-dark: #DB2777;
-  --yellow-main: #FBBF24;
-  --green-main: #34D399;
-  --green-dark: #059669;
-  --red-main: #FB7185;
-  --red-dark: #E11D48;
+  .difficulty-section {
+    margin-bottom: 14px;
+  }
   --blue-accent: #60A5FA;
 
   --text-primary: #F1F0FF;
@@ -36,14 +32,45 @@
   --glow-pink: rgba(219, 39, 119, 0.4);
 }
 
+/* Tema claro */
+.theme-light {
+  --bg-deep: #f7fafc;
+  --bg-mid: #e9e7fd;
+  --bg-card: #fff;
+  --bg-card-hover: #f3f0ff;
+  --bg-input: #f3f0ff;
+
+  --purple-main: #7C6BF0;
+  --purple-light: #a78bfa;
+  --purple-dark: #6d28d9;
+  --pink-main: #ff6b9d;
+  --pink-dark: #db2777;
+  --yellow-main: #ffd93d;
+  --green-main: #6BCB77;
+  --green-dark: #059669;
+  --red-main: #FB7185;
+  --red-dark: #E11D48;
+  --blue-accent: #4D96FF;
+
+  --text-primary: #2D2557;
+  --text-secondary: #6B7280;
+  --text-muted: #b5b5c3;
+  --text-on-color: #2D2557;
+
+  --border-subtle: rgba(124, 107, 240, 0.13);
+  --border-medium: rgba(124, 107, 240, 0.25);
+  --glow-purple: rgba(124, 107, 240, 0.13);
+  --glow-pink: rgba(255, 107, 157, 0.13);
+}
+
 /* ─── Reset & Base ────────────────────────────────────────── */
 html, body, #root {
-  height: 100vh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 * {
@@ -52,18 +79,17 @@ html, body, #root {
 
 /* ─── Game Screen (Full viewport) ─────────────────────────── */
 .game-screen {
-    min-height: 100vh;
-    width: 100vw;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(135deg, #f8ffae 0%, #43c6ac 100%);
-    overflow-x: hidden;
-    overflow-y: auto;
-    position: relative;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f8ffae 0%, #43c6ac 100%);
+  overflow: hidden;
+  box-sizing: border-box;
+  min-height: 100vh;
+  min-width: 100vw;
 }
 
 /* ─── Floating Background Shapes ──────────────────────────── */
@@ -144,14 +170,30 @@ html, body, #root {
 /* ─── MENU SCREEN ─────────────────────────────────────────── */
 .menu-container {
   width: 100%;
-  max-width: 480px;
-  padding: 40px 32px;
-  margin-top: 40px;
+  max-width: clamp(320px, 92vw, 540px);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: clamp(16px, 3vh, 36px) clamp(16px, 3vw, 32px);
+  box-sizing: border-box;
+}
+
+/* Players section (menu) */
+.menu-players-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.menu-player-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .menu-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 20px;
 }
 
 .logo-lottie {
@@ -161,7 +203,7 @@ html, body, #root {
 }
 
 .game-title {
-  font-size: 2.2rem;
+  font-size: clamp(1.6rem, 6vw, 2.2rem);
   font-weight: 900;
   letter-spacing: -0.02em;
   line-height: 1.1;
@@ -194,11 +236,6 @@ html, body, #root {
 }
 
 .menu-player-input {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: var(--bg-input);
   border-radius: 14px;
   padding: 10px 14px;
   border: 2px solid var(--border-subtle);
@@ -253,10 +290,14 @@ html, body, #root {
   margin-bottom: 10px;
 }
 
-.difficulty-slider-wrap {
+.players-header {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  margin-bottom: 0.5vh;
+  gap: 0.5vw;
+  min-height: 48px;
 }
 
 .difficulty-slider {
@@ -373,6 +414,15 @@ html, body, #root {
   color: var(--text-primary);
 }
 
+.toggle-hint {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 4px;
+  margin-left: 56px;
+  display: block;
+}
+
 .timer-presets {
   display: flex;
   gap: 8px;
@@ -426,18 +476,422 @@ html, body, #root {
   box-shadow: 0 6px 32px rgba(124, 58, 237, 0.6);
 }
 
+/* ─── WIZARD ─────────────────────────────────────────────── */
+
+/* Header compacto */
+.menu-header--compact {
+  padding-bottom: 4px;
+  margin-bottom: 0;
+}
+
+.menu-header--compact .menu-logo-img {
+  width: 54px;
+  height: 54px;
+}
+
+.menu-header--compact .game-title {
+  font-size: clamp(1.3rem, 5vw, 1.8rem);
+}
+
+.menu-header--compact .game-subtitle {
+  font-size: 0.82rem;
+  margin-top: 2px;
+}
+
+/* Step indicator */
+.wizard-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 14px 0 16px;
+}
+
+.wizard-step-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--border-medium);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s;
+}
+
+.wizard-step-dot.active {
+  background: var(--purple-dark);
+  border-color: var(--purple-main);
+  color: white;
+  box-shadow: 0 0 12px var(--glow-purple);
+}
+
+.wizard-step-dot.done {
+  background: var(--green-main);
+  border-color: var(--green-main);
+  color: white;
+}
+
+.wizard-step-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-left: 6px;
+}
+
+/* Content wrapper */
+.wizard-content {
+  overflow: hidden;
+}
+
+/* Navigation */
+.wizard-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.wizard-nav--end {
+  justify-content: flex-end;
+}
+
+.wizard-nav--center {
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.wizard-btn-next {
+  padding: 11px 24px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--purple-dark), var(--purple-main));
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 3px 14px var(--glow-purple);
+  transition: box-shadow 0.2s;
+}
+
+.wizard-btn-next:hover {
+  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.6);
+}
+
+.wizard-btn-back {
+  padding: 10px 18px;
+  border: 2px solid var(--border-medium);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.wizard-btn-back:hover {
+  border-color: var(--purple-main);
+  color: var(--purple-light);
+}
+
+/* ─── PASO 1: Jugadores redesign ─ */
+.menu-player-card--v2 {
+  background: var(--bg-input);
+  border-radius: 16px;
+  border: 2px solid var(--border-subtle);
+  padding: 14px;
+  margin-bottom: 12px;
+  transition: border-color 0.2s;
+}
+
+.menu-player-card--v2:hover {
+  border-color: var(--border-medium);
+}
+
+.player-card-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.player-avatar-lg {
+  width: 62px;
+  height: 62px;
+  min-width: 62px;
+  border-radius: 50%;
+  border: 3px solid;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 0 14px rgba(0,0,0,0.25);
+}
+
+.avatar-img-lg {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+
+.player-name-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.player-number-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.player-name-input--v2 {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.player-name-input--v2:focus {
+  outline: none;
+  border-color: var(--purple-main);
+  box-shadow: 0 0 10px var(--glow-purple);
+}
+
+.player-name-input--v2::placeholder {
+  color: var(--text-muted);
+}
+
+.avatar-picker--v2 {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.avatar-option--v2 {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  border: 2px solid var(--border-subtle);
+  background: var(--bg-card);
+  padding: 4px;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-option--v2:hover {
+  border-color: var(--purple-main);
+  transform: translateY(-2px);
+}
+
+.avatar-option--v2.selected {
+  border-color: var(--purple-main);
+  background: rgba(124, 58, 237, 0.18);
+  box-shadow: 0 0 12px var(--glow-purple);
+  transform: translateY(-2px);
+}
+
+/* ─── PASO 2: Wizard Cards ─ */
+.wizard-card {
+  background: var(--bg-input);
+  border-radius: 14px;
+  border: 1px solid var(--border-subtle);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.wizard-card-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin: 0 0 12px 0;
+}
+
+/* Difficulty bar visual */
+.difficulty-bar {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0 8px;
+}
+
+.difficulty-bar-segment {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-card);
+  transition: background 0.2s;
+}
+
+.difficulty-bar-segment.filled {
+  background: linear-gradient(
+    90deg,
+    hsl(calc(120 - (var(--seg-idx) / var(--seg-total)) * 120), 70%, 55%),
+    hsl(calc(110 - (var(--seg-idx) / var(--seg-total)) * 110), 70%, 52%)
+  );
+}
+
+/* Global timer row */
+.global-timer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border-radius: 10px;
+}
+
+.global-timer-label {
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.global-timer-input {
+  width: 70px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-medium);
+  padding: 6px 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  background: var(--bg-input);
+  font-family: inherit;
+}
+
+.global-timer-input:focus {
+  outline: none;
+  border-color: var(--purple-main);
+}
+
+.global-timer-unit {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* ─── PASO 3: VS Screen ─ */
+.vs-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin: 8px 0 20px;
+  position: relative;
+}
+
+.vs-player {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.vs-avatar-lg {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  border: 3px solid;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.vs-avatar-lg img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.vs-player-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.vs-divider {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--pink-main);
+  text-shadow: 0 0 16px var(--glow-pink);
+  padding: 0 12px;
+  letter-spacing: 0.05em;
+}
+
+/* Summary chips */
+.summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.summary-chip {
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-medium);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* Start button glow pulse */
+.btn-start--glow {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 4px 24px var(--glow-purple); }
+  50%       { box-shadow: 0 6px 36px rgba(124, 58, 237, 0.75), 0 0 0 4px rgba(124, 58, 237, 0.12); }
+}
+
 /* ─── GAME SCREEN ─────────────────────────────────────────── */
 
 /* Top Bar */
 .top-bar {
   width: 100%;
-  max-width: 720px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px;
-  margin-bottom: 12px;
+  padding: 10px clamp(12px, 2vw, 24px);
+  margin-bottom: 8px;
   z-index: 2;
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .top-bar-left {
@@ -513,12 +967,21 @@ html, body, #root {
   top: 0;
 }
 
-/* Game Container */
+/* Game Container — llena toda la pantalla en la batalla */
 .game-container {
-  width: 100%;
-  max-width: 720px;
-  padding: 24px 20px;
+  width: 100vw;
+  max-width: 1100px;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0 0 0;
   z-index: 1;
+  box-sizing: border-box;
+  overflow: visible;
 }
 
 /* Players Header */
@@ -571,10 +1034,10 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin: 12px 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+  margin: 0 auto 0.5vh auto;
+  font-size: clamp(0.95rem, 1vw, 1.1rem);
+  font-weight: 500;
+  color: var(--text-main, #333);
 }
 
 .turn-indicator strong {
@@ -733,13 +1196,6 @@ html, body, #root {
   min-width: 30px;
   border-radius: 10px;
   background: rgba(124, 58, 237, 0.3);
-  color: var(--purple-light);
-  font-weight: 800;
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(167, 139, 250, 0.3);
 }
 
 /* Feedback */
@@ -861,8 +1317,8 @@ html, body, #root {
 
 /* ─── PNG Character Images ────────────────────────────────── */
 .menu-logo-img {
-  width: 140px;
-  height: 140px;
+  width: clamp(80px, 18vw, 140px);
+  height: clamp(80px, 18vw, 140px);
   object-fit: contain;
   border-radius: 50%;
   margin-bottom: 8px;
@@ -1006,54 +1462,116 @@ html, body, #root {
 }
 
 /* ─── Responsive ──────────────────────────────────────────── */
-@media (max-width: 600px) {
-  .game-container {
-    padding: 12px 2vw;
-    min-width: 0;
-    width: 98vw;
-    max-width: 100vw;
-  }
-  .menu-container {
-    padding: 12px 2vw;
-    min-width: 0;
-    width: 98vw;
-    max-width: 100vw;
-  }
-  .players-header {
-    flex-direction: column;
-    gap: 10px;
-  }
-  .problem-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-  .choices-grid {
-    grid-template-columns: 1fr;
-  }
-  html, body, #root {
-    height: 100%;
-    min-height: 100vh;
-    overflow-x: hidden;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
+
+/* Pantallas medianas (tablets) */
+@media (max-width: 768px) {
+  .game-screen {
+    padding: 12px 8px;
   }
 
-  .problem-equation .math-display {
-    font-size: 1.2rem;
+  .menu-container {
+    max-width: 98vw;
+    padding: 20px 16px;
+  }
+
+  .game-container {
+    max-width: 98vw;
+    padding: 14px 12px;
   }
 
   .top-bar {
-    padding: 8px 12px;
+    max-width: 98vw;
+    padding: 8px 14px;
+  }
+
+  .difficulty-section {
+    margin-bottom: 14px;
+  }
+
+  .timer-config {
+    margin-bottom: 16px;
+    padding: 12px;
+  }
+}
+
+/* Pantallas pequeñas (móviles) */
+@media (max-width: 480px) {
+  .game-screen {
+    padding: 8px 4px;
+  }
+
+  .menu-container {
+    max-width: 100vw;
+    padding: 16px 12px;
+    border-radius: 16px;
+    margin-top: 0;
+  }
+
+  .game-container {
+    max-width: 100vw;
+    padding: 10px 8px;
+    border-radius: 16px;
+  }
+
+  .top-bar {
+    max-width: 100vw;
+    padding: 6px 10px;
+    border-radius: 12px;
+    margin-bottom: 8px;
   }
 
   .players-header {
+    flex-direction: row;
     gap: 8px;
   }
 
   .player-card {
     padding: 6px 8px;
+  }
+
+  .problem-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .choices-grid {
+    grid-template-columns: 1fr;
+    max-width: 100%;
+  }
+
+  .problem-equation .math-display {
+    font-size: 1.1rem;
+  }
+
+  .menu-logo-img {
+    width: clamp(70px, 20vw, 100px);
+    height: clamp(70px, 20vw, 100px);
+  }
+
+  .game-title {
+    font-size: clamp(1.4rem, 7vw, 1.8rem);
+  }
+
+  .menu-players-section {
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .avatar-picker {
+    gap: 4px;
+  }
+
+  .avatar-option {
+    width: 36px;
+    height: 36px;
+  }
+
+  html, body, #root {
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
 }
 

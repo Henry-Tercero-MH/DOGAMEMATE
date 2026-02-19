@@ -79,9 +79,14 @@ export default function useSoundEffects() {
     }
   }, [playTone]);
 
-  /** Tick del reloj (últimos 5 segundos) */
+  /** Tick suave del reloj (cada segundo) */
+  const playTickSoft = useCallback(() => {
+    playTone(900, 0.03, 'sine', 0.06);
+  }, [playTone]);
+
+  /** Tick urgente del reloj (últimos 5 segundos) */
   const playTick = useCallback(() => {
-    playTone(1200, 0.04, 'sine', 0.1);
+    playTone(1200, 0.05, 'sine', 0.12);
   }, [playTone]);
 
   /** Jalar la cuerda - efecto de tensión */
@@ -183,6 +188,7 @@ export default function useSoundEffects() {
     playCorrect,
     playWrong,
     playTimeUp,
+    playTickSoft,
     playTick,
     playPull,
     playWin,

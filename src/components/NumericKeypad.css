@@ -1,0 +1,161 @@
+/* ─── Numeric Keypad — Tablet / Primaria mode ─────────────── */
+
+.numeric-keypad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 340px;
+  margin: 4px auto 12px;
+}
+
+/* ─── Display ─────────────────────────────────────────────── */
+.keypad-display {
+  width: 100%;
+  min-height: 60px;
+  background: var(--bg-input);
+  border: 2px solid var(--border-medium);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 12px var(--glow-purple) inset;
+}
+
+.keypad-display-value {
+  font-size: clamp(1.8rem, 5vw, 2.4rem);
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: 0.06em;
+  font-family: inherit;
+}
+
+.keypad-placeholder {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.2em;
+}
+
+/* ─── Grid 3x4 ────────────────────────────────────────────── */
+.keypad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+/* ─── Botones ─────────────────────────────────────────────── */
+.keypad-btn {
+  height: clamp(56px, 9vw, 72px);
+  border-radius: 14px;
+  border: 2px solid var(--border-medium);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: clamp(1.3rem, 3.5vw, 1.7rem);
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.keypad-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--purple-main);
+  box-shadow: 0 0 12px var(--glow-purple);
+}
+
+.keypad-btn:active {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: var(--purple-light);
+}
+
+/* Tecla borrar */
+.keypad-delete {
+  background: rgba(251, 113, 133, 0.12);
+  border-color: rgba(251, 113, 133, 0.35);
+  color: var(--red-main);
+  font-size: clamp(1.1rem, 3vw, 1.4rem);
+}
+
+.keypad-delete:hover {
+  background: rgba(251, 113, 133, 0.22);
+  border-color: var(--red-main);
+  box-shadow: 0 0 10px rgba(251, 113, 133, 0.3);
+}
+
+/* Tecla signo negativo */
+.keypad-minus {
+  background: rgba(167, 139, 250, 0.1);
+  border-color: rgba(167, 139, 250, 0.3);
+  color: var(--purple-light);
+  font-size: clamp(1.4rem, 4vw, 1.9rem);
+}
+
+.keypad-minus:hover {
+  background: rgba(167, 139, 250, 0.2);
+  border-color: var(--purple-main);
+}
+
+/* ─── Botón Responder ─────────────────────────────────────── */
+.keypad-submit-btn {
+  width: 100%;
+  padding: clamp(12px, 2vh, 16px);
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--purple-dark), var(--purple-main));
+  color: white;
+  font-size: clamp(1rem, 2.5vw, 1.1rem);
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 18px var(--glow-purple);
+  transition: box-shadow 0.2s, opacity 0.2s;
+  letter-spacing: 0.03em;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.keypad-submit-btn:not(:disabled):hover {
+  box-shadow: 0 6px 26px rgba(124, 58, 237, 0.55);
+}
+
+.keypad-submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ─── Responsive ──────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .numeric-keypad {
+    max-width: 100%;
+    gap: 7px;
+  }
+
+  .keypad-grid {
+    gap: 6px;
+  }
+
+  .keypad-btn {
+    height: clamp(50px, 13vw, 64px);
+    border-radius: 12px;
+  }
+}
+
+@media (min-width: 769px) {
+  .numeric-keypad {
+    max-width: 380px;
+  }
+
+  .keypad-btn {
+    height: 70px;
+    font-size: 1.6rem;
+  }
+}

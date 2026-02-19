@@ -2,34 +2,35 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion'; // eslint-disable-line
 import './Timer.css';
 
-export default function Timer({ seconds = 30, onTimeUp, onTick, isActive = true, resetKey = 0 }) {
+export default function Timer({ seconds = 30, onTimeUp, onTick, onEveryTick, isActive = true, resetKey = 0 }) {
   const [timeLeft, setTimeLeft] = useState(seconds);
 
-  // Reset timer when resetKey changes
+  // Reset timer when resetKey or seconds change
   useEffect(() => {
     setTimeLeft(seconds);
   }, [resetKey, seconds]);
 
-  // Countdown
+  // Countdown — solo actualiza el número
   useEffect(() => {
     if (!isActive || timeLeft <= 0) return;
-
     const interval = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          onTimeUp?.();
-          return 0;
-        }
-        const next = t - 1;
-        if (next <= 5 && next > 0) {
-          onTick?.();
-        }
-        return next;
-      });
+      setTimeLeft((t) => (t <= 1 ? 0 : t - 1));
     }, 1000);
-
     return () => clearInterval(interval);
-  }, [isActive, timeLeft, onTimeUp, onTick]);
+  }, [isActive, timeLeft]);
+
+  // Side effects por cambio de timeLeft (fuera del state updater)
+  useEffect(() => {
+    if (!isActive) return;
+    if (timeLeft === 0) {
+      onTimeUp?.();
+    } else if (timeLeft < seconds) {
+      // Tick suave cada segundo
+      onEveryTick?.();
+      // Tick urgente en los últimos 5 segundos
+      if (timeLeft <= 5) onTick?.();
+    }
+  }, [timeLeft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const progress = timeLeft / seconds;
   const isUrgent = timeLeft <= 5;
