@@ -1,4 +1,6 @@
 import { useRef, useCallback } from 'react';
+import menuMp3 from '../assets/menu.mp3';
+import batallaMp3 from '../assets/batalla.mp3';
 
 /**
  * Hook de efectos de sonido generados con Web Audio API.
@@ -156,7 +158,7 @@ export default function useSoundEffects() {
   /** Reproducir música de menú (mp3) */
   const playMenu = useCallback(() => {
     if (!menuAudioRef.current) {
-      menuAudioRef.current = new Audio('/src/assets/menu.mp3');
+      menuAudioRef.current = new Audio(menuMp3);
       menuAudioRef.current.loop = true;
       menuAudioRef.current.volume = 0.5;
     }
@@ -171,7 +173,7 @@ export default function useSoundEffects() {
   /** Reproducir música de batalla (mp3) */
   const playBattle = useCallback(() => {
     if (!battleAudioRef.current) {
-      battleAudioRef.current = new Audio('/src/assets/batalla.mp3');
+      battleAudioRef.current = new Audio(batallaMp3);
       battleAudioRef.current.loop = true;
       battleAudioRef.current.volume = 0.7;
     }
