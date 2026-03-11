@@ -1177,6 +1177,21 @@ html, body, #root {
   color: var(--text-primary);
 }
 
+/* Optimización para móviles */
+@media (max-width: 480px) {
+  .choice-btn {
+    padding: 10px 12px;
+    font-size: 0.95rem;
+    margin: 0 4px;
+  }
+  
+  .choices-grid {
+    gap: 8px;
+    padding: 0;
+    max-width: 100%;
+  }
+}
+
 .choice-btn:hover {
   border-color: var(--purple-main);
   background: var(--bg-card-hover);

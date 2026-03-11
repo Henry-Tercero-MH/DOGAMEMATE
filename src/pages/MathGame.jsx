@@ -426,7 +426,7 @@ export default function MathGame() {
         }, 2000);
         
         // Verificar victoria (primer equipo en llegar a 5 puntos)
-        if (newScores[oppositeTeam] >= 5) {
+        if (newScores[oppositeTeam] >= 5 && winner === null) {
           setTimeout(() => {
             setWinner(oppositeTeam); // Establecer ganador ANTES del alert
             alert(`¡Equipo ${oppositeTeam} gana!`);
@@ -1704,13 +1704,14 @@ export default function MathGame() {
                           </div>
                         )}
 
-                        {/* Multiple choice - Botones más grandes */}
+                        {/* Multiple choice - Botones optimizados para móvil */}
                         {problem.inputType === 'choice' && !feedback && (
                           <div style={{ 
                             display: 'flex', 
                             flexDirection: 'column', 
-                            gap: '1rem',
-                            marginTop: '1rem'
+                            gap: '0.8rem',
+                            marginTop: '1rem',
+                            padding: '0 0.5rem'
                           }}>
                             {problem.choices.map((choice, idx) => (
                               <motion.button
@@ -1719,18 +1720,21 @@ export default function MathGame() {
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                                 style={{
-                                  padding: '1.5rem 2rem',
-                                  fontSize: '1.3rem',
+                                  padding: '1rem 1.2rem',
+                                  fontSize: '1.1rem',
                                   background: selectedChoice === idx ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'rgba(255,255,255,0.05)',
                                   border: `3px solid ${selectedChoice === idx ? '#667eea' : 'rgba(255,255,255,0.1)'}`,
                                   borderRadius: '12px',
                                   color: '#fff',
                                   cursor: 'pointer',
                                   transition: 'all 0.3s ease',
-                                  minHeight: '80px',
+                                  minHeight: '60px',
                                   display: 'flex',
                                   alignItems: 'center',
-                                  justifyContent: 'center'
+                                  justifyContent: 'center',
+                                  textAlign: 'center',
+                                  width: '100%',
+                                  maxWidth: '100%'
                                 }}
                               >
                                 <MathDisplay latex={choice.latex} />
