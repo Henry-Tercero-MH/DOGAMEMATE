@@ -4,7 +4,7 @@
 
 import axios from 'axios';
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzb2nAVkkYPHa1pMNjdA4KH9f_UGMo_MVoh9xqgkJOPagE_7PeUD3MHbjkQtG6IipQeQg/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw6SmDK2jQvKLUm3dnHmfDRIHjnz41alAz42Z6dMpjxa5Mnl4aDN0TQYVjHlIueGtmJFw/exec';
 
 export default async function handler(req, res) {
   // CORS headers

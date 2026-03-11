@@ -13,7 +13,7 @@ export default defineConfig({
         rewrite: (path) => {
           // Reescribir /api/proxy a la URL completa del Apps Script
           const queryString = path.replace('/api/proxy', '');
-          return '/macros/s/AKfycbzb2nAVkkYPHa1pMNjdA4KH9f_UGMo_MVoh9xqgkJOPagE_7PeUD3MHbjkQtG6IipQeQg/exec' + queryString;
+          return '/macros/s/AKfycbw6SmDK2jQvKLUm3dnHmfDRIHjnz41alAz42Z6dMpjxa5Mnl4aDN0TQYVjHlIueGtmJFw/exec' + queryString;
         }
       }
     }
