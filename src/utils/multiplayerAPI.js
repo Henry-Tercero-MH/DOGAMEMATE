@@ -1,7 +1,7 @@
 // API de Google Apps Script para el módulo multijugador
 // Usa proxy en producción (Vercel) para evitar CORS
 const isProduction = window.location.hostname !== 'localhost';
-const APPS_SCRIPT_DIRECT = 'https://script.google.com/macros/s/AKfycbyO_MfWtDiRqgQO-A5h04JsWFVaFKahdFGkZyojcfpKoJ1TQQsatjpq56bIUww7eOJd/exec';
+const APPS_SCRIPT_DIRECT = 'https://script.google.com/macros/s/AKfycbyMssiCUXl0ZaS6bwuUbdPvY21VzDVb7NWpbLZUwApo4TzQb4jgPOy_fX2IJ34fkesIqQ/exec';
 const VERCEL_PROXY = '/api/proxy';
 
 // En producción usa el proxy de Vercel, en desarrollo el Apps Script directo
