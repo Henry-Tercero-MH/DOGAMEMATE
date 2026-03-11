@@ -3,7 +3,7 @@ import './Lobby.css';
 import { listPlayers } from '../utils/multiplayerAPI';
 import { QRCodeSVG } from 'qrcode.react';
 
-export default function Lobby({ roomId, isJoining = false }) {
+export default function Lobby({ roomId, isJoining = false, isHost = false, onStartGame }) {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -124,9 +124,42 @@ export default function Lobby({ roomId, isJoining = false }) {
           ))
         )}
       </ul>
-      <p style={{ fontSize: '0.95rem', color: '#999', marginTop: '2rem' }}>
-        ⏳ Esperando a que todos se unan...
-      </p>
+      
+      {/* Botón Iniciar Partida - Solo para anfitrión */}
+      {isHost && players.length >= 1 && (
+        <button
+          onClick={onStartGame}
+          style={{
+            marginTop: '2rem',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: '#fff',
+            border: 'none',
+            padding: '1rem 2rem',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            fontSize: '1.1rem',
+            fontWeight: '700',
+            boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+          }}
+          onMouseEnter={e => {
+            e.target.style.transform = 'translateY(-2px)';
+            e.target.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.6)';
+          }}
+          onMouseLeave={e => {
+            e.target.style.transform = 'translateY(0)';
+            e.target.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+          }}
+        >
+          🎮 Iniciar Partida
+        </button>
+      )}
+      
+      {!isHost && (
+        <p style={{ fontSize: '0.95rem', color: '#999', marginTop: '2rem' }}>
+          ⏳ Esperando a que el anfitrión inicie la partida...
+        </p>
+      )}
     </div>
   );
 }

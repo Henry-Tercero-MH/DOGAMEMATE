@@ -20,12 +20,17 @@ function doGet(e) {
 
     const action = e.parameter.action;
     const roomId = e.parameter.roomId;
+    const problemId = e.parameter.problemId;
 
     switch (action) {
       case 'listPlayers':
         return jsonOk(listPlayers(roomId));
       case 'listRooms':
         return jsonOk(listRooms());
+      case 'getGameState':
+        return jsonOk(getGameState(roomId));
+      case 'getAnswers':
+        return jsonOk(getAnswers(roomId, problemId));
       default:
         return jsonErr('Acción no reconocida: ' + action);
     }
@@ -50,6 +55,12 @@ function doPost(e) {
         return jsonOk(createRoom(body));
       case 'savePlayerData':
         return jsonOk(savePlayerData(body));
+      case 'startGame':
+        return jsonOk(startGame(body));
+      case 'submitAnswer':
+        return jsonOk(submitAnswer(body));
+      case 'updateGameState':
+        return jsonOk(updateGameState(body));
       default:
         return jsonErr('Acción no reconocida: ' + action);
     }
@@ -152,6 +163,116 @@ function savePlayerData(data) {
     new Date()
   ]);
   return { saved: true };
+}
+
+// Iniciar juego (cambiar estado de sala a "playing")
+function startGame(data) {
+  const sheet = getSheet('GameRooms');
+  const allData = sheet.getDataRange().getValues();
+  const headers = allData[0];
+  const roomIdCol = headers.indexOf('roomId');
+  const statusCol = headers.indexOf('status');
+  
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][roomIdCol] === data.roomId) {
+      sheet.getRange(i + 1, statusCol + 1).setValue('playing');
+      sheet.getRange(i + 1, headers.indexOf('currentProblem') + 1 || 6).setValue(data.currentProblem || '');
+      sheet.getRange(i + 1, headers.indexOf('hostId') + 1 || 7).setValue(data.hostId || '');
+      return { started: true };
+    }
+  }
+  return { started: false, error: 'Room not found' };
+}
+
+// Enviar respuesta de jugador
+function submitAnswer(data) {
+  const sheet = getSheet('GameAnswers');
+  // Crear headers si no existen
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(['answerId', 'roomId', 'problemId', 'playerId', 'playerName', 'answer', 'isCorrect', 'points', 'timestamp']);
+  }
+  
+  const answerId = `ans_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`;
+  sheet.appendRow([
+    answerId,
+    data.roomId,
+    data.problemId,
+    data.playerId,
+    data.playerName,
+    data.answer,
+    data.isCorrect,
+    data.points || 0,
+    new Date()
+  ]);
+  
+  return { answerId: answerId, submitted: true };
+}
+
+// Obtener estado del juego
+function getGameState(roomId) {
+  const rooms = sheetToArray('GameRooms');
+  const room = rooms.find(r => r.roomId === roomId);
+  if (!room) return { error: 'Room not found' };
+  
+  return {
+    roomId: room.roomId,
+    status: room.status,
+    currentProblem: room.currentProblem || null,
+    hostId: room.hostId || null
+  };
+}
+
+// Obtener respuestas de un problema
+function getAnswers(roomId, problemId) {
+  const sheet = getSheet('GameAnswers');
+  if (sheet.getLastRow() === 0) return [];
+  
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  
+  return data.slice(1)
+    .filter(row => row[1] === roomId && row[2] === problemId)
+    .map(row => {
+      const obj = {};
+      headers.forEach((header, index) => {
+        obj[header] = row[index];
+      });
+      return obj;
+    });
+}
+
+// Actualizar estado del juego
+function updateGameState(data) {
+  const sheet = getSheet('GameRooms');
+  const allData = sheet.getDataRange().getValues();
+  const headers = allData[0];
+  const roomIdCol = headers.indexOf('roomId');
+  
+  // Asegurar que existen las columnas necesarias
+  if (headers.indexOf('currentProblem') === -1) {
+    headers.push('currentProblem');
+    sheet.getRange(1, headers.length).setValue('currentProblem');
+  }
+  if (headers.indexOf('hostId') === -1) {
+    headers.push('hostId');
+    sheet.getRange(1, headers.length).setValue('hostId');
+  }
+  
+  for (let i = 1; i < allData.length; i++) {
+    if (allData[i][roomIdCol] === data.roomId) {
+      if (data.status) {
+        sheet.getRange(i + 1, headers.indexOf('status') + 1).setValue(data.status);
+      }
+      if (data.currentProblem !== undefined) {
+        sheet.getRange(i + 1, headers.indexOf('currentProblem') + 1).setValue(data.currentProblem);
+      }
+      if (data.hostId) {
+        sheet.getRange(i + 1, headers.indexOf('hostId') + 1).setValue(data.hostId);
+      }
+      return { updated: true };
+    }
+  }
+  return { updated: false, error: 'Room not found' };
 }
 
 // ═══════════════════════════════════════════════════════════════════

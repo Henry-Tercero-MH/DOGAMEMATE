@@ -61,4 +61,64 @@ export async function listRooms() {
   return await res.json();
 }
 
+// Iniciar juego (solo anfitrión)
+export async function startGame(roomId, currentProblem, hostId) {
+  const payload = { action: 'startGame', roomId, currentProblem, hostId };
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  return await res.json();
+}
+
+// Enviar respuesta de jugador
+export async function submitAnswer(roomId, problemId, playerId, playerName, answer, isCorrect, points) {
+  const payload = { 
+    action: 'submitAnswer', 
+    roomId, 
+    problemId, 
+    playerId, 
+    playerName, 
+    answer, 
+    isCorrect,
+    points 
+  };
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  return await res.json();
+}
+
+// Obtener estado del juego
+export async function getGameState(roomId) {
+  const res = await fetch(`${API_URL}?action=getGameState&roomId=${roomId}`);
+  return await res.json();
+}
+
+// Obtener respuestas de un problema
+export async function getAnswers(roomId, problemId) {
+  const res = await fetch(`${API_URL}?action=getAnswers&roomId=${roomId}&problemId=${problemId}`);
+  return await res.json();
+}
+
+// Actualizar estado del juego
+export async function updateGameState(roomId, status, currentProblem, hostId) {
+  const payload = { action: 'updateGameState', roomId, status, currentProblem, hostId };
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  return await res.json();
+}
+
 export { API_URL };
