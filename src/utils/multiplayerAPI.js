@@ -1,13 +1,8 @@
 // API de Google Apps Script para el módulo multijugador
-// Usa proxy en producción (Vercel) para evitar CORS
-const isProduction = window.location.hostname !== 'localhost';
-const APPS_SCRIPT_DIRECT = 'https://script.google.com/macros/s/AKfycbyMssiCUXl0ZaS6bwuUbdPvY21VzDVb7NWpbLZUwApo4TzQb4jgPOy_fX2IJ34fkesIqQ/exec';
-const VERCEL_PROXY = '/api/proxy';
+// SIEMPRE usa proxy para evitar CORS (Vite en localhost, Vercel en producción)
+const API_URL = '/api/proxy';
 
-// En producción usa el proxy de Vercel, en desarrollo el Apps Script directo
-const API_URL = isProduction ? VERCEL_PROXY : APPS_SCRIPT_DIRECT;
-
-console.log('🌐 Multiplayer API:', isProduction ? 'Vercel Proxy' : 'Apps Script Direct');
+console.log('🌐 Multiplayer API: Usando proxy (Vite local o Vercel producción)');
 
 // Obtener datos de una partida
 export async function fetchGameData(gameId) {
