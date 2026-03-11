@@ -288,6 +288,7 @@ export default function MathGame() {
               }
             }
             
+            setWinner(winner); // Actualizar estado del ganador
             alert(`🏆 ¡Equipo ${winner} gana!`);
             setPhase('finished');
             if (soundEnabled) sfx.playWin();
@@ -544,12 +545,18 @@ export default function MathGame() {
   const handleAnswer = (answer, isCorrectChoice = null) => {
     if (feedback || winner !== null) return;
     let isCorrect;
+    let userAnswer = answer;
+    
     if (isCorrectChoice !== null) {
       isCorrect = isCorrectChoice;
+      // Si no hay respuesta de texto, usar el valor booleano como indicador
+      userAnswer = answer || (isCorrect ? 'Correcto' : 'Incorrecto');
     } else {
       isCorrect = answer.trim() === problem.answer;
+      userAnswer = answer;
     }
-    processAnswer(isCorrect, answer);
+    
+    processAnswer(isCorrect, userAnswer);
   };
 
   const handleSubmit = (e) => {
@@ -567,7 +574,8 @@ export default function MathGame() {
     if (feedback) return;
     if (soundEnabled) sfx.playClick();
     setSelectedChoice(choice);
-    handleAnswer(null, choice.correct);
+    // Pasar el latex de la opción como respuesta
+    handleAnswer(choice.latex || '', choice.correct);
   };
 
   const handleChoiceSubmit = () => {
@@ -1431,50 +1439,81 @@ export default function MathGame() {
             exit={{ opacity: 0, scale: 0.8 }}
             aria-label="Resultado de la partida"
           >
-            <motion.img
-              src={getAvatarSrc(players[winner].avatarId)}
-              alt="Avatar del ganador"
-              className="winner-avatar-img"
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{ rotate: [0, -5, 5, -3, 0], scale: [0, 1.1, 1], opacity: 1 }}
-              transition={{ duration: 1, repeat: Infinity, repeatDelay: 0.5 }}
-            />
-            {/* Genio appears for winner celebration */}
-            <motion.img
-              src={imgGenio}
-              alt="Genio celebrando"
-              className="winner-genio-img"
-              initial={{ opacity: 0, x: 60, scale: 0.7 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
-            />
-            <h2 className="winner-text">
-              ¡{players[winner].name} gana la batalla!
-            </h2>
+            {/* Mostrar diferentes pantallas de ganador según el modo */}
             {isMultiplayer ? (
-              <p className="winner-stats">
-                Puntuación ganadora: {players[winner].score} puntos
-              </p>
+              /* Modo Multijugador - Mostrar equipo ganador */
+              <>
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: [0, 1.2, 1], opacity: 1 }}
+                  transition={{ duration: 0.8 }}
+                  style={{
+                    fontSize: '8rem',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  {winner === 'A' ? '🔴' : '🔵'}
+                </motion.div>
+                <motion.img
+                  src={imgGenio}
+                  alt="Genio celebrando"
+                  className="winner-genio-img"
+                  initial={{ opacity: 0, x: 60, scale: 0.7 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
+                />
+                <h2 className="winner-text" style={{ color: winner === 'A' ? '#FF6B9D' : '#7C6BF0' }}>
+                  ¡Equipo {winner} gana la batalla!
+                </h2>
+                <p className="winner-stats" style={{ fontSize: '1.3rem', marginTop: '1rem' }}>
+                  Puntuación final: <span style={{ color: '#FF6B9D' }}>Equipo A: {teamScores.A}</span> - <span style={{ color: '#7C6BF0' }}>Equipo B: {teamScores.B}</span>
+                </p>
+              </>
             ) : (
-              <p className="winner-stats">
-                Puntuación final: {players[0].score} - {players[1].score}
-              </p>
+              /* Modo Local - Mostrar jugador ganador */
+              <>
+                <motion.img
+                  src={getAvatarSrc(players[winner].avatarId)}
+                  alt="Avatar del ganador"
+                  className="winner-avatar-img"
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ rotate: [0, -5, 5, -3, 0], scale: [0, 1.1, 1], opacity: 1 }}
+                  transition={{ duration: 1, repeat: Infinity, repeatDelay: 0.5 }}
+                />
+                <motion.img
+                  src={imgGenio}
+                  alt="Genio celebrando"
+                  className="winner-genio-img"
+                  initial={{ opacity: 0, x: 60, scale: 0.7 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
+                />
+                <h2 className="winner-text">
+                  ¡{players[winner].name} gana la batalla!
+                </h2>
+                <p className="winner-stats">
+                  Puntuación final: {players[0].score} - {players[1].score}
+                </p>
+              </>
             )}
-            <div style={{display:'flex',justifyContent:'center',gap:24,margin:'24px 0'}}>
-              {players.map((p,i)=>(
-                <div key={i} style={{background:'var(--bg-card)',borderRadius:16,padding:'16px 20px',minWidth:140}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-                    <img src={getAvatarSrc(p.avatarId)} alt={p.name} style={{width:36,height:36,borderRadius:'50%'}} />
-                    <span style={{fontWeight:700,color:'var(--text-primary)'}}>{p.name}</span>
+            {/* Estadísticas solo en modo local */}
+            {!isMultiplayer && (
+              <div style={{display:'flex',justifyContent:'center',gap:24,margin:'24px 0'}}>
+                {players.map((p,i)=>(
+                  <div key={i} style={{background:'var(--bg-card)',borderRadius:16,padding:'16px 20px',minWidth:140}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                      <img src={getAvatarSrc(p.avatarId)} alt={p.name} style={{width:36,height:36,borderRadius:'50%'}} />
+                      <span style={{fontWeight:700,color:'var(--text-primary)'}}>{p.name}</span>
+                    </div>
+                    <div style={{fontSize:'0.98rem',color:'var(--text-secondary)'}}>
+                      <div>✔️ Aciertos: <b>{stats[i].correct}</b></div>
+                      <div>❌ Errores: <b>{stats[i].wrong}</b></div>
+                      <div>🔥 Mejor racha: <b>{stats[i].maxStreak}</b></div>
+                    </div>
                   </div>
-                  <div style={{fontSize:'0.98rem',color:'var(--text-secondary)'}}>
-                    <div>✔️ Aciertos: <b>{stats[i].correct}</b></div>
-                    <div>❌ Errores: <b>{stats[i].wrong}</b></div>
-                    <div>🔥 Mejor racha: <b>{stats[i].maxStreak}</b></div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
             <motion.button
               className="btn-restart"
               onClick={resetGame}
