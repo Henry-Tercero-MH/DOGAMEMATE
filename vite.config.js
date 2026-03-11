@@ -7,15 +7,13 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/proxy': {
-        target: 'https://script.google.com/macros/s/AKfycbzOG4GMPXOEI95ISChSMxuHg2qs70_Yp1eoNrekYFZ4rZGAa7h21jx2JK-PRJGUZhnIRg/exec',
+        target: 'https://script.google.com',
         changeOrigin: true,
-        rewrite: (path) => '',
-        configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            // Reescribir la URL completa con query params
-            const fullUrl = 'https://script.google.com/macros/s/AKfycbyMssiCUXl0ZaS6bwuUbdPvY21VzDVb7NWpbLZUwApo4TzQb4jgPOy_fX2IJ34fkesIqQ/exec' + (req.url?.replace('/api/proxy', '') || '');
-            proxyReq.path = fullUrl.replace('https://script.google.com', '');
-          });
+        followRedirects: true,
+        rewrite: (path) => {
+          // Reescribir /api/proxy a la URL completa del Apps Script
+          const queryString = path.replace('/api/proxy', '');
+          return '/macros/s/AKfycbzOG4GMPXOEI95ISChSMxuHg2qs70_Yp1eoNrekYFZ4rZGAa7h21jx2JK-PRJGUZhnIRg/exec' + queryString;
         }
       }
     }
