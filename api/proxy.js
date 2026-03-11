@@ -2,6 +2,8 @@
 // Vercel Serverless Function - Proxy para Google Apps Script
 // ═══════════════════════════════════════════════════════════════════
 
+import axios from 'axios';
+
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzOG4GMPXOEI95ISChSMxuHg2qs70_Yp1eoNrekYFZ4rZGAa7h21jx2JK-PRJGUZhnIRg/exec';
 
 export default async function handler(req, res) {
@@ -16,7 +18,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    const axios = require('axios');
     const { method, body, query } = req;
 
     let response;
