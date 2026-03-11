@@ -11,8 +11,17 @@ export async function fetchGameData(gameId) {
 }
 
 // Guardar datos de un jugador
-export async function savePlayerData(gameId, playerName, score) {
-  const payload = { action: 'savePlayerData', gameId, playerName, score };
+export async function savePlayerData(roomId, winner, scoreTeamA, scoreTeamB, totalPlayers, startTime, duration) {
+  const payload = { 
+    action: 'savePlayerData', 
+    roomId,
+    winner,
+    scoreTeamA,
+    scoreTeamB,
+    totalPlayers,
+    startTime,
+    duration
+  };
   const res = await fetch(API_URL, {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -75,13 +84,14 @@ export async function startGame(roomId, currentProblem, hostId) {
 }
 
 // Enviar respuesta de jugador
-export async function submitAnswer(roomId, problemId, playerId, playerName, answer, isCorrect, points) {
+export async function submitAnswer(roomId, problemId, playerId, playerName, teamId, answer, isCorrect, points) {
   const payload = { 
     action: 'submitAnswer', 
     roomId, 
     problemId, 
     playerId, 
-    playerName, 
+    playerName,
+    teamId, 
     answer, 
     isCorrect,
     points 

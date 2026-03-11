@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { registerPlayer, createRoom, listPlayers, startGame as startGameAPI, getGameState, updateGameState, submitAnswer } from '../utils/multiplayerAPI';
+import { registerPlayer, createRoom, listPlayers, startGame as startGameAPI, getGameState, updateGameState, submitAnswer, savePlayerData } from '../utils/multiplayerAPI';
 // Hook para tema
 function useTheme() {
   const [theme, setTheme] = useState(() => {
@@ -98,6 +98,7 @@ export default function MathGame() {
   const [ballMoving, setBallMoving] = useState(false); // Si el balón está en movimiento
   const [ballFalling, setBallFalling] = useState(false); // Si el balón está cayendo
   const [teamScores, setTeamScores] = useState({ A: 0, B: 0 }); // Puntos por equipo
+  const [gameStartTime, setGameStartTime] = useState(null); // Tiempo de inicio del juego
   const inputRef = useRef(null);
   const fullscreenRef = useRef(null);
   const sfx = useSoundEffects();
@@ -214,12 +215,34 @@ export default function MathGame() {
           }
           
           // Verificar si hay un ganador
-          if (state.scoreTeamA >= 5) {
-            alert(`🏆 ¡Equipo A gana!`);
-            setPhase('finished');
-            if (soundEnabled) sfx.playWin();
-          } else if (state.scoreTeamB >= 5) {
-            alert(`🏆 ¡Equipo B gana!`);
+          if (state.scoreTeamA >= 5 || state.scoreTeamB >= 5) {
+            const winner = state.scoreTeamA >= 5 ? 'A' : 'B';
+            
+            // Guardar resultados del juego (solo el host)
+            if (isHost && gameStartTime) {
+              const endTime = new Date();
+              const duration = Math.floor((endTime - gameStartTime) / 1000); // duración en segundos
+              
+              try {
+                const playersResponse = await listPlayers(roomId);
+                const totalPlayers = playersResponse.success ? playersResponse.data.length : 0;
+                
+                await savePlayerData(
+                  roomId,
+                  winner,
+                  state.scoreTeamA,
+                  state.scoreTeamB,
+                  totalPlayers,
+                  gameStartTime,
+                  duration
+                );
+                console.log('✅ Datos del juego guardados exitosamente');
+              } catch (err) {
+                console.error('❌ Error guardando datos del juego:', err);
+              }
+            }
+            
+            alert(`🏆 ¡Equipo ${winner} gana!`);
             setPhase('finished');
             if (soundEnabled) sfx.playWin();
           }
@@ -234,7 +257,7 @@ export default function MathGame() {
     const interval = setInterval(syncGameState, 2000);
 
     return () => clearInterval(interval);
-  }, [isMultiplayer, phase, roomId, ballPosition, teamScores, soundEnabled, sfx]);
+  }, [isMultiplayer, phase, roomId, ballPosition, teamScores, soundEnabled, sfx, isHost, gameStartTime]);
 
   const currentPlayer = players[turn];
 
@@ -309,11 +332,32 @@ export default function MathGame() {
     if (soundEnabled) sfx.playGameStart();
   };
 
-  const processAnswer = useCallback(async (isCorrect) => {
+  const processAnswer = useCallback(async (isCorrect, userAnswer = '') => {
     // MODO MULTIJUGADOR CON EQUIPOS Y BALÓN
     if (isMultiplayer) {
       const currentTeam = ballPosition; // El equipo que tiene el balón
       const oppositeTeam = currentTeam === 'A' ? 'B' : 'A';
+      
+      // Guardar la respuesta en la base de datos
+      try {
+        const problemId = `prob_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const playerName = players[0]?.name || 'Jugador';
+        const points = isCorrect ? 1 : 0;
+        
+        await submitAnswer(
+          roomId,
+          problemId,
+          playerId,
+          playerName,
+          teamId,
+          userAnswer,
+          isCorrect,
+          points
+        );
+        console.log('✅ Respuesta guardada:', { problemId, playerName, teamId, answer: userAnswer, isCorrect });
+      } catch (err) {
+        console.error('❌ Error guardando respuesta:', err);
+      }
       
       if (isCorrect) {
         // Respuesta correcta: lanzar balón al otro equipo
@@ -449,7 +493,7 @@ export default function MathGame() {
       setRound((r) => r + 1);
       if (soundEnabled) sfx.playTurnChange();
     }, 2200);
-  }, [ropePos, players, turn, problem, soundEnabled, sfx, stats, isMultiplayer, ballPosition, teamScores]);
+  }, [ropePos, players, turn, problem, soundEnabled, sfx, stats, isMultiplayer, ballPosition, teamScores, roomId, playerId, teamId]);
 
   const handleAnswer = (answer, isCorrectChoice = null) => {
     if (feedback || winner !== null) return;
@@ -459,7 +503,7 @@ export default function MathGame() {
     } else {
       isCorrect = answer.trim() === problem.answer;
     }
-    processAnswer(isCorrect);
+    processAnswer(isCorrect, answer);
   };
 
   const handleSubmit = (e) => {
@@ -478,6 +522,13 @@ export default function MathGame() {
     if (soundEnabled) sfx.playClick();
     setSelectedChoice(choice);
     handleAnswer(null, choice.correct);
+  };
+
+  const handleChoiceSubmit = () => {
+    if (selectedChoice === null || !problem || !problem.choices) return;
+    const choice = problem.choices[selectedChoice];
+    if (soundEnabled) sfx.playClick();
+    handleAnswer(choice.latex, choice.correct);
   };
 
   const handleTimeUp = useCallback(() => {
@@ -550,6 +601,9 @@ export default function MathGame() {
       setBallMoving(false);
       setBallFalling(false);
       setTeamScores({ A: 0, B: 0 });
+      
+      // Guardar tiempo de inicio del juego
+      setGameStartTime(new Date());
       
       // Actualizar localStorage
       localStorage.setItem('gameState', JSON.stringify({
@@ -1122,6 +1176,36 @@ export default function MathGame() {
         >
           {theme === 'dark' ? '🌞' : '🌙'}
         </button>
+        {isMultiplayer && phase === 'playing' && (
+          <button
+            className="wizard-btn-back"
+            style={{
+              marginRight: 8,
+              padding: '0.4rem 0.8rem',
+              fontSize: '0.85rem',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '2px solid rgba(239, 68, 68, 0.3)',
+              color: '#ef4444'
+            }}
+            onClick={() => {
+              if (confirm('¿Estás seguro de que quieres abandonar la partida?')) {
+                // Limpiar estado y volver al menú
+                localStorage.removeItem('gameState');
+                setPhase('menu');
+                setMenuStep(1);
+                setIsMultiplayer(false);
+                setRoomId('');
+                setIsHost(false);
+                setIsJoiningRoom(false);
+                if (soundEnabled) sfx.playClick();
+              }
+            }}
+            title="Abandonar partida"
+            aria-label="Abandonar partida"
+          >
+            🚪 Abandonar
+          </button>
+        )}
         <div className="top-bar-left">
           <span className="badge" aria-label={`Dificultad: ${DIFFICULTY_LABELS[difficulty - 1]}`}>{DIFFICULTY_LABELS[difficulty - 1]}</span>
           <span className="round-counter" aria-label={`Ronda actual: ${round}`}>Ronda {round}</span>
@@ -1679,6 +1763,8 @@ export default function MathGame() {
                 </AnimatePresence>
               </motion.section>
             )}
+          </>
+        )}
           </>
         )}
       </motion.main>

@@ -96,7 +96,9 @@ function getSheet(name) {
     } else if (name === 'GameRooms') {
       sheet.appendRow(['roomId', 'roomName', 'maxPlayers', 'createdAt', 'status', 'currentProblem', 'hostId', 'ballPosition', 'scoreTeamA', 'scoreTeamB', 'currentTeam']);
     } else if (name === 'MultiplayerGame') {
-      sheet.appendRow(['gameId', 'playerName', 'score', 'timestamp']);
+      sheet.appendRow(['gameId', 'roomId', 'winner', 'scoreTeamA', 'scoreTeamB', 'totalPlayers', 'startTime', 'endTime', 'duration']);
+    } else if (name === 'GameAnswers') {
+      sheet.appendRow(['answerId', 'roomId', 'problemId', 'playerId', 'playerName', 'teamId', 'answer', 'isCorrect', 'points', 'timestamp']);
     }
   }
   return sheet;
@@ -163,13 +165,20 @@ function listRooms() {
 
 function savePlayerData(data) {
   const sheet = getSheet('MultiplayerGame');
+  const gameId = data.gameId || `game_${new Date().getTime()}`;
+  
   sheet.appendRow([
-    data.gameId,
-    data.playerName,
-    data.score,
-    new Date()
+    gameId,
+    data.roomId,
+    data.winner, // 'A' o 'B'
+    data.scoreTeamA || 0,
+    data.scoreTeamB || 0,
+    data.totalPlayers || 0,
+    data.startTime || new Date(),
+    new Date(), // endTime
+    data.duration || 0 // duración en segundos
   ]);
-  return { saved: true };
+  return { saved: true, gameId: gameId };
 }
 
 // Iniciar juego (cambiar estado de sala a "playing")
@@ -194,10 +203,6 @@ function startGame(data) {
 // Enviar respuesta de jugador
 function submitAnswer(data) {
   const sheet = getSheet('GameAnswers');
-  // Crear headers si no existen
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(['answerId', 'roomId', 'problemId', 'playerId', 'playerName', 'answer', 'isCorrect', 'points', 'timestamp']);
-  }
   
   const answerId = `ans_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`;
   sheet.appendRow([
@@ -206,6 +211,7 @@ function submitAnswer(data) {
     data.problemId,
     data.playerId,
     data.playerName,
+    data.teamId || 'A',
     data.answer,
     data.isCorrect,
     data.points || 0,
