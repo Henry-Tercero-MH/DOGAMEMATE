@@ -128,9 +128,17 @@ export default function MathGame() {
         const { roomId: savedRoomId, playerId: savedPlayerId, isHost: savedIsHost, teamId: savedTeamId, phase: savedPhase } = JSON.parse(gameState);
         if (savedRoomId && savedPlayerId) {
           console.log('🔄 Restaurando estado del juego:', { savedRoomId, savedPlayerId, savedIsHost, savedTeamId });
+          
+          // Detectar si se está uniendo via URL/QR
+          const urlParams = new URLSearchParams(window.location.search);
+          const isJoiningViaURL = !!(urlParams.get('roomId') && urlParams.get('teamId'));
+          
+          console.log('👤 Determinando rol:', { isJoiningViaURL, savedIsHost, finalIsHost: isJoiningViaURL ? false : (savedIsHost || false) });
+          
           setRoomId(savedRoomId);
           setPlayerId(savedPlayerId);
-          setIsHost(savedIsHost || false);
+          // CRUCIAL: Si se une via URL/QR, NUNCA debe ser anfitrión, ignore localStorage
+          setIsHost(isJoiningViaURL ? false : (savedIsHost || false));
           setTeamId(savedTeamId || 'A');
           setIsMultiplayer(true);
           if (savedPhase === 'lobby' || savedPhase === 'playing') {
