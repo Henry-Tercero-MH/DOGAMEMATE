@@ -29,7 +29,7 @@ export default function Lobby({ roomId, isJoining = false, isHost = false, onSta
 
   return (
     <div className="lobby-container">
-      <h2>{isJoining ? '👋 Uniéndote a la Sala' : '🎮 Sala de Espera'}</h2>
+      <h2>{isJoining ? '👋 Uniéndote a la Sala' : '🎮 Sala de Espera - 2 Equipos'}</h2>
       
       {isJoining && (
         <p style={{ color: '#6BCB77', marginBottom: '1rem', fontSize: '0.95rem', textAlign: 'center' }}>
@@ -37,93 +37,159 @@ export default function Lobby({ roomId, isJoining = false, isHost = false, onSta
         </p>
       )}
       
-      <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
-        {/* QR Code - Solo se muestra si estás creando la sala */}
-        {!isJoining && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ 
-              background: '#fff', 
-              padding: '1rem', 
-              borderRadius: '12px', 
-              display: 'inline-block',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-            }}>
-              <QRCodeSVG 
-                value={`${window.location.origin}/?roomId=${roomId}`} 
-                size={180}
-                level="M"
-                includeMargin={true}
-              />
+      {/* Mostrar 2 QR codes - Uno por equipo */}
+      {!isJoining && (
+        <div style={{ marginBottom: '2rem' }}>
+          <h3 style={{ textAlign: 'center', marginBottom: '1rem', color: '#667eea' }}>
+            📱 Escanea según tu equipo
+          </h3>
+          <div style={{ display: 'flex', gap: '3rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {/* QR Equipo A */}
+            <div style={{ textAlign: 'center' }}>
+              <h4 style={{ color: '#FF6B9D', marginBottom: '0.5rem', fontSize: '1.2rem' }}>🔴 Equipo A</h4>
+              <div style={{ 
+                background: '#fff', 
+                padding: '1rem', 
+                borderRadius: '12px', 
+                display: 'inline-block',
+                boxShadow: '0 4px 12px rgba(255,107,157,0.3)',
+                border: '3px solid #FF6B9D'
+              }}>
+                <QRCodeSVG 
+                  value={`${window.location.origin}/?roomId=${roomId}&teamId=A`} 
+                  size={150}
+                  level="M"
+                  includeMargin={true}
+                />
+              </div>
             </div>
-            <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#aaa' }}>Escanea para unirte</p>
-          </div>
-        )}
 
-        {/* Room Info */}
-        <div style={{ textAlign: 'left', flex: '1', minWidth: '200px' }}>
-          <div style={{ marginBottom: '1rem' }}>
-            <p style={{ fontSize: '0.9rem', color: '#aaa', marginBottom: '0.3rem' }}>Room ID:</p>
-            <div style={{ 
-              background: 'rgba(102, 126, 234, 0.1)', 
-              padding: '0.75rem 1rem', 
-              borderRadius: '8px',
-              border: '2px solid rgba(102, 126, 234, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.5rem'
-            }}>
-              <strong style={{ 
-                color: '#667eea', 
-                fontFamily: 'monospace', 
-                fontSize: '1.1rem',
-                wordBreak: 'break-all'
-              }}>{roomId}</strong>
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText(roomId);
-                  alert('Room ID copiado al portapapeles');
-                }}
-                style={{
-                  background: '#667eea',
-                  color: '#fff',
-                  border: 'none',
-                  padding: '0.4rem 0.8rem',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '0.8rem',
-                  fontWeight: '600',
-                  whiteSpace: 'nowrap'
-                }}
-                title="Copiar Room ID"
-              >
-                📋 Copiar
-              </button>
+            {/* QR Equipo B */}
+            <div style={{ textAlign: 'center' }}>
+              <h4 style={{ color: '#7C6BF0', marginBottom: '0.5rem', fontSize: '1.2rem' }}>🔵 Equipo B</h4>
+              <div style={{ 
+                background: '#fff', 
+                padding: '1rem', 
+                borderRadius: '12px', 
+                display: 'inline-block',
+                boxShadow: '0 4px 12px rgba(124,107,240,0.3)',
+                border: '3px solid #7C6BF0'
+              }}>
+                <QRCodeSVG 
+                  value={`${window.location.origin}/?roomId=${roomId}&teamId=B`} 
+                  size={150}
+                  level="M"
+                  includeMargin={true}
+                />
+              </div>
             </div>
           </div>
-          
-          <div style={{ fontSize: '1.1rem', color: '#667eea', marginTop: '1.5rem' }}>
-            👥 Jugadores conectados: <strong>{players.length}</strong>
+        </div>
+      )}
+
+      {/* Room Info */}
+      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+        <div>
+          <p style={{ fontSize: '0.9rem', color: '#aaa', marginBottom: '0.3rem' }}>Room ID:</p>
+          <div style={{ 
+            background: 'rgba(102, 126, 234, 0.1)', 
+            padding: '0.75rem 1rem', 
+            borderRadius: '8px',
+            border: '2px solid rgba(102, 126, 234, 0.3)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem'
+          }}>
+            <strong style={{ 
+              color: '#667eea', 
+              fontFamily: 'monospace', 
+              fontSize: '1.1rem'
+            }}>{roomId}</strong>
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(roomId);
+                alert('Room ID copiado al portapapeles');
+              }}
+              style={{
+                background: '#667eea',
+                color: '#fff',
+                border: 'none',
+                padding: '0.4rem 0.8rem',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                whiteSpace: 'nowrap'
+              }}
+              title="Copiar Room ID"
+            >
+              📋 Copiar
+            </button>
           </div>
+        </div>
+        
+        <div style={{ fontSize: '1.1rem', color: '#667eea', marginTop: '1.5rem' }}>
+          👥 Jugadores conectados: <strong>{players.length}</strong>
         </div>
       </div>
 
       {loading && players.length === 0 ? <p>Cargando jugadores...</p> : null}
       
-      <ul>
-        {players.length === 0 ? (
-          <li style={{ justifyContent: 'center', color: '#888' }}>
-            Esperando jugadores...
-          </li>
-        ) : (
-          players.map((player, idx) => (
-            <li key={idx}>
-              <span>{player[1] || 'Jugador'}</span> {/* playerName */}
-              <span style={{ marginLeft: 8, color: '#888' }}>🎭 {player[2] || 'avatar'}</span>
-            </li>
-          ))
-        )}
-      </ul>
+      {/* Lista de jugadores por equipos */}
+      <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '2rem' }}>
+        {/* Equipo A */}
+        <div style={{ flex: '1', minWidth: '250px', maxWidth: '400px' }}>
+          <h3 style={{ color: '#FF6B9D', textAlign: 'center', marginBottom: '1rem' }}>🔴 Equipo A</h3>
+          <ul style={{ 
+            listStyle: 'none', 
+            padding: 0, 
+            background: 'rgba(255,107,157,0.1)',
+            border: '2px solid rgba(255,107,157,0.3)',
+            borderRadius: '12px',
+            minHeight: '100px'
+          }}>
+            {players.filter(p => (p.teamId || p[5]) === 'A').length === 0 ? (
+              <li style={{ justifyContent: 'center', color: '#888', padding: '1rem' }}>
+                Esperando jugadores del Equipo A...
+              </li>
+            ) : (
+              players.filter(p => (p.teamId || p[5]) === 'A').map((player, idx) => (
+                <li key={idx} style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(255,107,157,0.2)' }}>
+                  <span>{player.playerName || player[1] || 'Jugador'}</span>
+                  <span style={{ marginLeft: 8, color: '#FF6B9D' }}>🎭 {player.avatar || player[2] || 'avatar'}</span>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+
+        {/* Equipo B */}
+        <div style={{ flex: '1', minWidth: '250px', maxWidth: '400px' }}>
+          <h3 style={{ color: '#7C6BF0', textAlign: 'center', marginBottom: '1rem' }}>🔵 Equipo B</h3>
+          <ul style={{ 
+            listStyle: 'none', 
+            padding: 0,
+            background: 'rgba(124,107,240,0.1)',
+            border: '2px solid rgba(124,107,240,0.3)',
+            borderRadius: '12px',
+            minHeight: '100px'
+          }}>
+            {players.filter(p => (p.teamId || p[5]) === 'B').length === 0 ? (
+              <li style={{ justifyContent: 'center', color: '#888', padding: '1rem' }}>
+                Esperando jugadores del Equipo B...
+              </li>
+            ) : (
+              players.filter(p => (p.teamId || p[5]) === 'B').map((player, idx) => (
+                <li key={idx} style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(124,107,240,0.2)' }}>
+                  <span>{player.playerName || player[1] || 'Jugador'}</span>
+                  <span style={{ marginLeft: 8, color: '#7C6BF0' }}>🎭 {player.avatar || player[2] || 'avatar'}</span>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      </div>
       
       {/* Botón Iniciar Partida - Solo para anfitrión */}
       {isHost && players.length >= 1 && (

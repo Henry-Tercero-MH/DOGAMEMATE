@@ -92,9 +92,9 @@ function getSheet(name) {
     sheet = ss.insertSheet(name);
     // Crear headers según el tipo de hoja
     if (name === 'Players') {
-      sheet.appendRow(['playerId', 'playerName', 'avatar', 'lastActive', 'roomId']);
+      sheet.appendRow(['playerId', 'playerName', 'avatar', 'lastActive', 'roomId', 'teamId']);
     } else if (name === 'GameRooms') {
-      sheet.appendRow(['roomId', 'roomName', 'maxPlayers', 'createdAt', 'status']);
+      sheet.appendRow(['roomId', 'roomName', 'maxPlayers', 'createdAt', 'status', 'currentProblem', 'hostId', 'ballPosition', 'scoreTeamA', 'scoreTeamB', 'currentTeam']);
     } else if (name === 'MultiplayerGame') {
       sheet.appendRow(['gameId', 'playerName', 'score', 'timestamp']);
     }
@@ -128,7 +128,8 @@ function registerPlayer(data) {
     data.playerName,
     data.avatar,
     new Date(),
-    data.roomId
+    data.roomId,
+    data.teamId || 'A'
   ]);
   return { playerId: data.playerId, registered: true };
 }
@@ -140,7 +141,13 @@ function createRoom(data) {
     data.roomName,
     data.maxPlayers || 10,
     new Date(),
-    'waiting'
+    'waiting',
+    '', // currentProblem
+    '', // hostId
+    'A', // ballPosition (empieza en equipo A)
+    0, // scoreTeamA
+    0, // scoreTeamB
+    'A' // currentTeam (empieza equipo A)
   ]);
   return { roomId: data.roomId, created: true };
 }
@@ -218,7 +225,11 @@ function getGameState(roomId) {
     roomId: room.roomId,
     status: room.status,
     currentProblem: room.currentProblem || null,
-    hostId: room.hostId || null
+    hostId: room.hostId || null,
+    ballPosition: room.ballPosition || 'A',
+    scoreTeamA: room.scoreTeamA || 0,
+    scoreTeamB: room.scoreTeamB || 0,
+    currentTeam: room.currentTeam || 'A'
   };
 }
 
@@ -249,14 +260,13 @@ function updateGameState(data) {
   const roomIdCol = headers.indexOf('roomId');
   
   // Asegurar que existen las columnas necesarias
-  if (headers.indexOf('currentProblem') === -1) {
-    headers.push('currentProblem');
-    sheet.getRange(1, headers.length).setValue('currentProblem');
-  }
-  if (headers.indexOf('hostId') === -1) {
-    headers.push('hostId');
-    sheet.getRange(1, headers.length).setValue('hostId');
-  }
+  const requiredCols = ['currentProblem', 'hostId', 'ballPosition', 'scoreTeamA', 'scoreTeamB', 'currentTeam'];
+  requiredCols.forEach(col => {
+    if (headers.indexOf(col) === -1) {
+      headers.push(col);
+      sheet.getRange(1, headers.length).setValue(col);
+    }
+  });
   
   for (let i = 1; i < allData.length; i++) {
     if (allData[i][roomIdCol] === data.roomId) {
@@ -268,6 +278,18 @@ function updateGameState(data) {
       }
       if (data.hostId) {
         sheet.getRange(i + 1, headers.indexOf('hostId') + 1).setValue(data.hostId);
+      }
+      if (data.ballPosition) {
+        sheet.getRange(i + 1, headers.indexOf('ballPosition') + 1).setValue(data.ballPosition);
+      }
+      if (data.scoreTeamA !== undefined) {
+        sheet.getRange(i + 1, headers.indexOf('scoreTeamA') + 1).setValue(data.scoreTeamA);
+      }
+      if (data.scoreTeamB !== undefined) {
+        sheet.getRange(i + 1, headers.indexOf('scoreTeamB') + 1).setValue(data.scoreTeamB);
+      }
+      if (data.currentTeam) {
+        sheet.getRange(i + 1, headers.indexOf('currentTeam') + 1).setValue(data.currentTeam);
       }
       return { updated: true };
     }

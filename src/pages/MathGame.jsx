@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { registerPlayer, createRoom, listPlayers } from '../utils/multiplayerAPI';
+import { registerPlayer, createRoom, listPlayers, startGame as startGameAPI, getGameState } from '../utils/multiplayerAPI';
 // Hook para tema
 function useTheme() {
   const [theme, setTheme] = useState(() => {
@@ -24,6 +24,7 @@ import { generateProblem, DIFFICULTY_LABELS, getMaxDifficulty } from '../utils/m
 import useSoundEffects from '../hooks/useSoundEffects';
 import NumericKeypad from '../components/NumericKeypad';
 import Lobby from './Lobby';
+import Ball from '../components/Ball';
 
 // Personajes PNG (fondo transparente)
 import imgNino from '../assets/niño-removebg-preview.png';
@@ -89,6 +90,14 @@ export default function MathGame() {
   const [isMultiplayer, setIsMultiplayer] = useState(false);
   const [roomId, setRoomId] = useState('');
   const [isJoiningRoom, setIsJoiningRoom] = useState(false); // true si se unió vía QR
+  const [playerId, setPlayerId] = useState(() => localStorage.getItem('playerId') || '');
+  const [isHost, setIsHost] = useState(false);
+  const [teamId, setTeamId] = useState('A'); // Equipo del jugador ('A' o 'B')
+  // Estado del balón para modo equipos
+  const [ballPosition, setBallPosition] = useState('A'); // 'A' o 'B' - en qué equipo está el balón
+  const [ballMoving, setBallMoving] = useState(false); // Si el balón está en movimiento
+  const [ballFalling, setBallFalling] = useState(false); // Si el balón está cayendo
+  const [teamScores, setTeamScores] = useState({ A: 0, B: 0 }); // Puntos por equipo
   const inputRef = useRef(null);
   const fullscreenRef = useRef(null);
   const sfx = useSoundEffects();
@@ -97,15 +106,42 @@ export default function MathGame() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlRoomId = params.get('roomId');
+    const urlTeamId = params.get('teamId'); // Detectar equipo del QR
     
     if (urlRoomId && !isMultiplayer && phase === 'menu') {
-      console.log('🔗 Detectado roomId en URL:', urlRoomId);
+      console.log('🔗 Detectado roomId en URL:', urlRoomId, 'Equipo:', urlTeamId || 'A');
       setIsMultiplayer(true);
       setRoomId(urlRoomId);
       setIsJoiningRoom(true); // Marcamos que se está uniendo
+      setIsHost(false); // Si se une vía URL, no es host
+      setTeamId(urlTeamId || 'A'); // Asignar equipo del QR
       setPhase('lobby');
     }
   }, []); // Solo al montar el componente
+
+  // Restaurar estado del juego desde localStorage al recargar
+  useEffect(() => {
+    const gameState = localStorage.getItem('gameState');
+    if (gameState) {
+      try {
+        const { roomId: savedRoomId, playerId: savedPlayerId, isHost: savedIsHost, teamId: savedTeamId, phase: savedPhase } = JSON.parse(gameState);
+        if (savedRoomId && savedPlayerId) {
+          console.log('🔄 Restaurando estado del juego:', { savedRoomId, savedPlayerId, savedIsHost, savedTeamId });
+          setRoomId(savedRoomId);
+          setPlayerId(savedPlayerId);
+          setIsHost(savedIsHost || false);
+          setTeamId(savedTeamId || 'A');
+          setIsMultiplayer(true);
+          if (savedPhase === 'lobby' || savedPhase === 'playing') {
+            setPhase(savedPhase);
+          }
+        }
+      } catch (err) {
+        console.error('Error restaurando estado:', err);
+        localStorage.removeItem('gameState');
+      }
+    }
+  }, []);
 
   // Sonido de menú al entrar en el menú
   useEffect(() => {
@@ -141,16 +177,23 @@ export default function MathGame() {
 
   // Registrar jugadores en la sala cuando se entra al lobby
   useEffect(() => {
-    if (phase === 'lobby' && roomId && isMultiplayer) {
-      // Crear la sala
-      createRoom(roomId, 'Sala de Matemáticas', 100).catch(err => console.error('Error creando sala:', err));
-      // Registrar jugadores
-      players.forEach((player, idx) => {
-        const playerId = `${roomId}_player${idx}`;
-        registerPlayer(playerId, player.name, player.avatarId, roomId).catch(err => console.error('Error registrando jugador:', err));
-      });
+    if (phase === 'lobby' && roomId && isMultiplayer && playerId) {
+      console.log('📝 Registrando en sala:', { roomId, playerId, isHost, teamId });
+      
+      // Crear la sala (solo si es host)
+      if (isHost) {
+        createRoom(roomId, 'Sala de Matemáticas', 100)
+          .then(() => console.log('✅ Sala creada exitosamente'))
+          .catch(err => console.error('❌ Error creando sala:', err));
+      }
+      
+      // Registrar al jugador actual con su equipo
+      const currentPlayerData = players[0]; // Usamos el primer jugador como base
+      registerPlayer(playerId, currentPlayerData.name, currentPlayerData.avatarId, roomId, teamId)
+        .then(() => console.log('✅ Jugador registrado exitosamente en equipo:', teamId))
+        .catch(err => console.error('❌ Error registrando jugador:', err));
     }
-  }, [phase, roomId, isMultiplayer, players]);
+  }, [phase, roomId, isMultiplayer, playerId, isHost, teamId]);
 
   const currentPlayer = players[turn];
 
@@ -226,6 +269,59 @@ export default function MathGame() {
   };
 
   const processAnswer = useCallback((isCorrect) => {
+    // MODO MULTIJUGADOR CON EQUIPOS Y BALÓN
+    if (isMultiplayer) {
+      const currentTeam = ballPosition; // El equipo que tiene el balón
+      const oppositeTeam = currentTeam === 'A' ? 'B' : 'A';
+      
+      if (isCorrect) {
+        // Respuesta correcta: lanzar balón al otro equipo
+        setBallMoving(true);
+        if (soundEnabled) sfx.playCorrect();
+        
+        setTimeout(() => {
+          setBallPosition(oppositeTeam);
+          setBallMoving(false);
+          setFeedback(null);
+          setRound((r) => r + 1);
+          if (soundEnabled) sfx.playPull();
+        }, 800);
+        
+        setFeedback({ type: 'correct', correctAnswer: problem?.answerLatex || '' });
+      } else {
+        // Respuesta incorrecta: balón cae, punto para el otro equipo
+        setBallFalling(true);
+        if (soundEnabled) sfx.playWrong();
+        
+        const newScores = { ...teamScores };
+        newScores[oppositeTeam] += 1;
+        setTeamScores(newScores);
+        
+        setTimeout(() => {
+          setBallFalling(false);
+          // El balón vuelve al equipo que falló
+          setBallPosition(currentTeam);
+          setFeedback(null);
+          setRound((r) => r + 1);
+        }, 2000);
+        
+        setFeedback({ type: 'wrong', correctAnswer: problem?.answerLatex || '' });
+        
+        // Verificar victoria (primer equipo en llegar a 5 puntos)
+        if (newScores[oppositeTeam] >= 5) {
+          setTimeout(() => {
+            alert(`¡Equipo ${oppositeTeam} gana!`);
+            setPhase('finished');
+            if (soundEnabled) sfx.playWin();
+          }, 2200);
+          return;
+        }
+      }
+      
+      return; // Salir del callback en modo multijugador
+    }
+    
+    // MODO LOCAL (tira y afloja tradicional)
     let newRopePos = ropePos;
     const newPlayers = players.map((p) => ({ ...p }));
     const newStats = stats.map((s) => ({ ...s }));
@@ -277,31 +373,18 @@ export default function MathGame() {
       setTimeout(() => setShowConfetti(false), 1500);
     }
 
-    // Verificar victoria: modo local usa tira y afloja, multijugador usa puntos
-    if (isMultiplayer) {
-      // En multijugador, gana el primero en llegar a 10 puntos
-      const winningScore = 10;
-      const winnerIndex = newPlayers.findIndex(p => p.score >= winningScore);
-      if (winnerIndex !== -1) {
-        setWinner(winnerIndex);
-        setPhase('finished');
-        if (soundEnabled) sfx.playWin();
-        return;
-      }
-    } else {
-      // En modo local, se usa el sistema de tira y afloja tradicional
-      if (newRopePos <= -MAX_ROPE) {
-        setWinner(0);
-        setPhase('finished');
-        if (soundEnabled) sfx.playWin();
-        return;
-      }
-      if (newRopePos >= MAX_ROPE) {
-        setWinner(1);
-        setPhase('finished');
-        if (soundEnabled) sfx.playWin();
-        return;
-      }
+    // Verificar victoria en modo local
+    if (newRopePos <= -MAX_ROPE) {
+      setWinner(0);
+      setPhase('finished');
+      if (soundEnabled) sfx.playWin();
+      return;
+    }
+    if (newRopePos >= MAX_ROPE) {
+      setWinner(1);
+      setPhase('finished');
+      if (soundEnabled) sfx.playWin();
+      return;
     }
 
     setTimeout(() => {
@@ -311,7 +394,7 @@ export default function MathGame() {
       setRound((r) => r + 1);
       if (soundEnabled) sfx.playTurnChange();
     }, 2200);
-  }, [ropePos, players, turn, problem, soundEnabled, sfx, stats, isMultiplayer]);
+  }, [ropePos, players, turn, problem, soundEnabled, sfx, stats, isMultiplayer, ballPosition, teamScores]);
 
   const handleAnswer = (answer, isCorrectChoice = null) => {
     if (feedback || winner !== null) return;
@@ -371,6 +454,64 @@ export default function MathGame() {
   const goNext = () => { setStepDirection(1); setMenuStep((s) => s + 1); };
   const goBack = () => { setStepDirection(-1); setMenuStep((s) => s - 1); };
 
+  // Función para iniciar el juego (solo host)
+  const handleStartGame = async () => {
+    if (soundEnabled) sfx.playClick();
+    
+    try {
+      // Cargar jugadores conectados del lobby
+      const response = await listPlayers(roomId);
+      const connectedPlayers = response.success ? response.data : [];
+      
+      if (!connectedPlayers || connectedPlayers.length === 0) {
+        alert('No hay jugadores conectados. Espera a que se unan jugadores.');
+        return;
+      }
+      
+      // Generar primer problema
+      const firstProblem = generateProblem(difficulty);
+      const problemId = `prob_${Date.now()}`;
+      
+      // Llamar a API para iniciar el juego
+      await startGameAPI(roomId, problemId, playerId);
+      
+      // Convertir jugadores del lobby al formato del juego
+      const colors = ['#7C6BF0', '#FF6B9D', '#FFD93D', '#6BCB77', '#4D96FF', '#F97316', '#EC4899', '#8B5CF6'];
+      const gamePlayers = connectedPlayers.map((player, idx) => ({
+        name: player.playerName || `Jugador ${idx + 1}`,
+        score: 0,
+        color: colors[idx % colors.length],
+        avatarId: player.avatar || 'nino',
+        playerId: player.playerId,
+      }));
+      
+      // Actualizar jugadores y empezar el juego
+      setPlayers(gamePlayers);
+      setStats(gamePlayers.map(() => ({ correct: 0, wrong: 0, maxStreak: 0, currentStreak: 0 })));
+      setProblem(firstProblem);
+      
+      // Inicializar estado del balón (empieza en equipo A)
+      setBallPosition('A');
+      setBallMoving(false);
+      setBallFalling(false);
+      setTeamScores({ A: 0, B: 0 });
+      
+      // Actualizar localStorage
+      localStorage.setItem('gameState', JSON.stringify({
+        roomId,
+        playerId,
+        isHost,
+        teamId,
+        phase: 'playing'
+      }));
+      
+      setPhase('playing');
+    } catch (err) {
+      console.error('Error iniciando juego:', err);
+      alert('Error al iniciar el juego. Intenta de nuevo.');
+    }
+  };
+
   const stepVariants = {
     enter: (dir) => ({ x: dir > 0 ? 48 : -48, opacity: 0 }),
     center: { x: 0, opacity: 1 },
@@ -392,53 +533,23 @@ export default function MathGame() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Lobby roomId={roomId} isJoining={isJoiningRoom} />
+          <Lobby 
+            roomId={roomId} 
+            isJoining={isJoiningRoom} 
+            isHost={isHost}
+            onStartGame={handleStartGame}
+          />
           <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-            <motion.button
-              className="btn-start"
-              onClick={async () => {
-                if (soundEnabled) sfx.playClick();
-                try {
-                  // Cargar jugadores conectados del lobby
-                  const response = await listPlayers(roomId);
-                  const connectedPlayers = response.success ? response.data : [];
-                  
-                  if (!connectedPlayers || connectedPlayers.length === 0) {
-                    alert('No hay jugadores conectados. Espera a que se unan jugadores.');
-                    return;
-                  }
-                  
-                  // Convertir jugadores del lobby al formato del juego
-                  const colors = ['#7C6BF0', '#FF6B9D', '#FFD93D', '#6BCB77', '#4D96FF', '#F97316', '#EC4899', '#8B5CF6'];
-                  const gamePlayers = connectedPlayers.map((player, idx) => ({
-                    name: player.playerName || `Jugador ${idx + 1}`,
-                    score: 0,
-                    color: colors[idx % colors.length],
-                    avatarId: player.avatar || 'nino',
-                  }));
-                  
-                  // Actualizar jugadores y empezar el juego
-                  setPlayers(gamePlayers);
-                  setStats(gamePlayers.map(() => ({ correct: 0, wrong: 0, maxStreak: 0, currentStreak: 0 })));
-                  setPhase('playing');
-                } catch (err) {
-                  console.error('Error cargando jugadores:', err);
-                  alert('Error al cargar jugadores. Intenta de nuevo.');
-                }
-              }}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              style={{ marginRight: '1rem' }}
-            >
-              ▶️ Comenzar Partida
-            </motion.button>
             <button
               className="wizard-btn-back"
               onClick={() => {
+                // Limpiar estado al salir
+                localStorage.removeItem('gameState');
                 setPhase('menu');
-                setMenuStep(1); // Volver al paso 1 (selección de modo)
+                setMenuStep(1);
                 setIsMultiplayer(false);
                 setRoomId('');
+                setIsHost(false);
               }}
             >
               ← Volver al Menú
@@ -573,7 +684,23 @@ export default function MathGame() {
                         if (isMultiplayer) {
                           // Si es multijugador, crear sala e ir directo al lobby
                           const newRoomId = 'room_' + Date.now();
+                          const newPlayerId = playerId || `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                          
                           setRoomId(newRoomId);
+                          setPlayerId(newPlayerId);
+                          setIsHost(true); // El que crea la sala es el anfitrión
+                          setIsJoiningRoom(false); // No se está uniendo, está creando
+                          
+                          // Guardar en localStorage para persistencia
+                          localStorage.setItem('playerId', newPlayerId);
+                          localStorage.setItem('gameState', JSON.stringify({
+                            roomId: newRoomId,
+                            playerId: newPlayerId,
+                            isHost: true,
+                            teamId: 'A', // Host no tiene equipo específico
+                            phase: 'lobby'
+                          }));
+                          
                           setPhase('lobby');
                           if (soundEnabled) sfx.playClick();
                         } else {
@@ -1058,6 +1185,34 @@ export default function MathGame() {
             })}
           </AnimatePresence>
         </nav>
+
+        {/* Balón animado - Solo en modo multijugador */}
+        {isMultiplayer && (
+          <Ball 
+            position={ballPosition} 
+            isMoving={ballMoving} 
+            isFalling={ballFalling}
+          />
+        )}
+
+        {/* Marcador de equipos en modo multijugador */}
+        {isMultiplayer && (
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            gap: '3rem', 
+            margin: '1rem 0',
+            fontSize: '1.5rem',
+            fontWeight: 'bold'
+          }}>
+            <div style={{ color: '#FF6B9D' }}>
+              🔴 Equipo A: {teamScores.A}
+            </div>
+            <div style={{ color: '#7C6BF0' }}>
+              🔵 Equipo B: {teamScores.B}
+            </div>
+          </div>
+        )}
 
         {/* Tug Characters pulling rope - Solo en modo local (2 jugadores) */}
         {!isMultiplayer && players.length === 2 && (

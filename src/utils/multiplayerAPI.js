@@ -24,8 +24,8 @@ export async function savePlayerData(gameId, playerName, score) {
 }
 
 // Registrar jugador en sala
-export async function registerPlayer(playerId, playerName, avatar, roomId) {
-  const payload = { action: 'registerPlayer', playerId, playerName, avatar, roomId };
+export async function registerPlayer(playerId, playerName, avatar, roomId, teamId = 'A') {
+  const payload = { action: 'registerPlayer', playerId, playerName, avatar, roomId, teamId };
   const res = await fetch(API_URL, {
     method: 'POST',
     body: JSON.stringify(payload),
