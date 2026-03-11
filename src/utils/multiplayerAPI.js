@@ -1,5 +1,5 @@
 // API de Google Apps Script para el módulo multijugador
-const API_URL = 'https://script.google.com/macros/s/AKfycbzRgy1bzZl4A7hQJ9_Br_fyKGF7e5XFmDERZLdFMDc4REq4DJN8AVQncWK7gyEcCJoIbw/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbx9Gq887--3md_-8J7sd68KXpcBUG11sS3e8MvOP6FTeH3m2iEbC_-aSp7iryQfIQX2Mw/exec';
 
 // Obtener datos de una partida
 export async function fetchGameData(gameId) {
