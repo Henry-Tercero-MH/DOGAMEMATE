@@ -2,7 +2,7 @@
 // Vercel Serverless Function - Proxy para Google Apps Script
 // ═══════════════════════════════════════════════════════════════════
 
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxvFoymK21P88h37Hee61KOCXPHWfWWmYhm2PYmJIooPcfE8etnkjSiNlHJgvJGFFXdUg/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyO_MfWtDiRqgQO-A5h04JsWFVaFKahdFGkZyojcfpKoJ1TQQsatjpq56bIUww7eOJd/exec';
 
 export default async function handler(req, res) {
   // CORS headers
