@@ -6,6 +6,42 @@
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzVgUlo3JDsAaB6H2u3NcSIM9lN81hWR1BpjCHPuA8A0i4rJZY8zqd5TW9tj1W1Wzu8/exec';
 
+// Helper para hacer fetch (compatible con Node.js)
+async function fetchData(url, options = {}) {
+  const https = require('https');
+  const urlParsed = new URL(url);
+  
+  return new Promise((resolve, reject) => {
+    const reqOptions = {
+      hostname: urlParsed.hostname,
+      port: 443,
+      path: urlParsed.pathname + urlParsed.search,
+      method: options.method || 'GET',
+      headers: options.headers || {},
+    };
+
+    const request = https.request(reqOptions, (response) => {
+      let data = '';
+      response.on('data', (chunk) => { data += chunk; });
+      response.on('end', () => {
+        try {
+          resolve({ ok: response.statusCode === 200, json: () => Promise.resolve(JSON.parse(data)) });
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    request.on('error', reject);
+    
+    if (options.body) {
+      request.write(options.body);
+    }
+    
+    request.end();
+  });
+}
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -31,7 +67,7 @@ export default async function handler(req, res) {
       const queryString = new URLSearchParams(query).toString();
       const url = `${APPS_SCRIPT_URL}?${queryString}`;
       
-      response = await fetch(url, {
+      response = await fetchData(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -39,7 +75,7 @@ export default async function handler(req, res) {
       });
     } else if (method === 'POST') {
       // Para POST requests, enviar el body
-      response = await fetch(APPS_SCRIPT_URL, {
+      response = await fetchData(APPS_SCRIPT_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
