@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { registerPlayer, createRoom, listPlayers } from '../utils/multiplayerAPI';
 // Hook para tema
 function useTheme() {
   const [theme, setTheme] = useState(() => {
@@ -22,6 +23,7 @@ import TugCharacters from '../components/TugCharacters';
 import { generateProblem, DIFFICULTY_LABELS, getMaxDifficulty } from '../utils/mathProblems';
 import useSoundEffects from '../hooks/useSoundEffects';
 import NumericKeypad from '../components/NumericKeypad';
+import Lobby from './Lobby';
 
 // Personajes PNG (fondo transparente)
 import imgNino from '../assets/niño-removebg-preview.png';
@@ -82,8 +84,10 @@ export default function MathGame() {
   const [pulling, setPulling] = useState(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [tabletMode, setTabletMode] = useState(false);
-  const [gameDuration, setGameDuration] = useState(0); // 0 = libre
+  const [gameDuration, _setGameDuration] = useState(0); // 0 = libre
   const [gameTimeLeft, setGameTimeLeft] = useState(0);
+  const [isMultiplayer, setIsMultiplayer] = useState(false);
+  const [roomId, setRoomId] = useState('');
   const inputRef = useRef(null);
   const fullscreenRef = useRef(null);
   const sfx = useSoundEffects();
@@ -119,6 +123,19 @@ export default function MathGame() {
       inputRef.current.focus();
     }
   }, [problem, feedback]);
+
+  // Registrar jugadores en la sala cuando se entra al lobby
+  useEffect(() => {
+    if (phase === 'lobby' && roomId && isMultiplayer) {
+      // Crear la sala
+      createRoom(roomId, 'Sala de Matemáticas', 100).catch(err => console.error('Error creando sala:', err));
+      // Registrar jugadores
+      players.forEach((player, idx) => {
+        const playerId = `${roomId}_player${idx}`;
+        registerPlayer(playerId, player.name, player.avatarId, roomId).catch(err => console.error('Error registrando jugador:', err));
+      });
+    }
+  }, [phase, roomId, isMultiplayer, players]);
 
   const currentPlayer = players[turn];
 
@@ -220,7 +237,7 @@ export default function MathGame() {
     } else {
       newRopePos = ropePos + (turn === 0 ? 1 : -1);
       setStreak(0);
-      setPulling((turn + 1) % 2);
+      setPulling((turn + 1) % players.length);
       if (soundEnabled) {
         sfx.playWrong();
         setTimeout(() => sfx.playPull(), 300);
@@ -245,27 +262,41 @@ export default function MathGame() {
       setTimeout(() => setShowConfetti(false), 1500);
     }
 
-    if (newRopePos <= -MAX_ROPE) {
-      setWinner(0);
-      setPhase('finished');
-      if (soundEnabled) sfx.playWin();
-      return;
-    }
-    if (newRopePos >= MAX_ROPE) {
-      setWinner(1);
-      setPhase('finished');
-      if (soundEnabled) sfx.playWin();
-      return;
+    // Verificar victoria: modo local usa tira y afloja, multijugador usa puntos
+    if (isMultiplayer) {
+      // En multijugador, gana el primero en llegar a 10 puntos
+      const winningScore = 10;
+      const winnerIndex = newPlayers.findIndex(p => p.score >= winningScore);
+      if (winnerIndex !== -1) {
+        setWinner(winnerIndex);
+        setPhase('finished');
+        if (soundEnabled) sfx.playWin();
+        return;
+      }
+    } else {
+      // En modo local, se usa el sistema de tira y afloja tradicional
+      if (newRopePos <= -MAX_ROPE) {
+        setWinner(0);
+        setPhase('finished');
+        if (soundEnabled) sfx.playWin();
+        return;
+      }
+      if (newRopePos >= MAX_ROPE) {
+        setWinner(1);
+        setPhase('finished');
+        if (soundEnabled) sfx.playWin();
+        return;
+      }
     }
 
     setTimeout(() => {
       setFeedback(null);
       setPulling(null);
-      setTurn((t) => (t + 1) % 2);
+      setTurn((t) => (t + 1) % players.length);
       setRound((r) => r + 1);
       if (soundEnabled) sfx.playTurnChange();
     }, 2200);
-  }, [ropePos, players, turn, problem, soundEnabled, sfx, stats]);
+  }, [ropePos, players, turn, problem, soundEnabled, sfx, stats, isMultiplayer]);
 
   const handleAnswer = (answer, isCorrectChoice = null) => {
     if (feedback || winner !== null) return;
@@ -331,6 +362,77 @@ export default function MathGame() {
     exit: (dir) => ({ x: dir > 0 ? -48 : 48, opacity: 0 }),
   };
 
+  // ─── LOBBY (Sala de espera multijugador) ─────────────────
+  if (phase === 'lobby') {
+    return (
+      <div className="game-screen" ref={fullscreenRef} aria-label="Sala de espera multijugador">
+        <div className="floating-shapes" aria-hidden="true">
+          <div className="shape shape-1" />
+          <div className="shape shape-2" />
+          <div className="shape shape-3" />
+        </div>
+        <motion.section
+          className="menu-container glass-card"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Lobby roomId={roomId} />
+          <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+            <motion.button
+              className="btn-start"
+              onClick={async () => {
+                if (soundEnabled) sfx.playClick();
+                try {
+                  // Cargar jugadores conectados del lobby
+                  const connectedPlayers = await listPlayers(roomId);
+                  
+                  if (connectedPlayers.length === 0) {
+                    alert('No hay jugadores conectados. Espera a que se unan jugadores.');
+                    return;
+                  }
+                  
+                  // Convertir jugadores del lobby al formato del juego
+                  const colors = ['#7C6BF0', '#FF6B9D', '#FFD93D', '#6BCB77', '#4D96FF', '#F97316', '#EC4899', '#8B5CF6'];
+                  const gamePlayers = connectedPlayers.map((player, idx) => ({
+                    name: player[1] || `Jugador ${idx + 1}`, // playerName
+                    score: 0,
+                    color: colors[idx % colors.length],
+                    avatarId: player[2] || 'nino', // avatar
+                  }));
+                  
+                  // Actualizar jugadores y empezar el juego
+                  setPlayers(gamePlayers);
+                  setStats(gamePlayers.map(() => ({ correct: 0, wrong: 0, maxStreak: 0, currentStreak: 0 })));
+                  setPhase('playing');
+                } catch (err) {
+                  console.error('Error cargando jugadores:', err);
+                  alert('Error al cargar jugadores. Intenta de nuevo.');
+                }
+              }}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              style={{ marginRight: '1rem' }}
+            >
+              ▶️ Comenzar Partida
+            </motion.button>
+            <button
+              className="wizard-btn-back"
+              onClick={() => {
+                setPhase('menu');
+                setMenuStep(1); // Volver al paso 1 (selección de modo)
+                setIsMultiplayer(false);
+                setRoomId('');
+              }}
+            >
+              ← Volver al Menú
+            </button>
+          </div>
+        </motion.section>
+      </div>
+    );
+  }
+
   if (phase === 'menu') {
     return (
       <div className="game-screen" ref={fullscreenRef} aria-label="Pantalla de menú principal">
@@ -365,7 +467,7 @@ export default function MathGame() {
 
           {/* ── Step indicator ── */}
           <div className="wizard-steps">
-            {[1, 2, 3].map((n) => (
+            {[1, 2, 3, 4].map((n) => (
               <div
                 key={n}
                 className={`wizard-step-dot${menuStep === n ? ' active' : menuStep > n ? ' done' : ''}`}
@@ -374,7 +476,7 @@ export default function MathGame() {
               </div>
             ))}
             <span className="wizard-step-label">
-              {menuStep === 1 ? 'Jugadores' : menuStep === 2 ? 'Configuración' : '¡A Jugar!'}
+              {menuStep === 1 ? 'Modo de Juego' : menuStep === 2 ? 'Jugadores' : menuStep === 3 ? 'Configuración' : '¡A Jugar!'}
             </span>
           </div>
 
@@ -382,10 +484,100 @@ export default function MathGame() {
           <div className="wizard-content">
             <AnimatePresence mode="wait" custom={stepDirection}>
 
-              {/* ─ PASO 1: Jugadores ─ */}
+              {/* ─ PASO 1: Modo de Juego ─ */}
               {menuStep === 1 && (
                 <motion.div
                   key="step1"
+                  custom={stepDirection}
+                  variants={stepVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.28, ease: 'easeInOut' }}
+                >
+                  <div style={{ textAlign: 'center', padding: '0.5rem 0' }}>
+                    <h2 style={{ fontSize: '1.4rem', marginBottom: '0.5rem', color: '#fff' }}>Selecciona el modo de juego</h2>
+                    <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>¿Cómo quieres jugar?</p>
+                    
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', maxWidth: '500px', margin: '0 auto' }}>
+                      <motion.div
+                        className={`mode-card ${!isMultiplayer ? 'selected' : ''}`}
+                        onClick={() => {
+                          setIsMultiplayer(false);
+                          if (soundEnabled) sfx.playClick();
+                        }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.98 }}
+                        style={{
+                          padding: '1.2rem 1.5rem',
+                          background: !isMultiplayer ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'rgba(255, 255, 255, 0.05)',
+                          border: !isMultiplayer ? '3px solid #667eea' : '2px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '12px',
+                          cursor: 'pointer',
+                          minWidth: '200px',
+                          flex: 1,
+                          transition: 'all 0.3s ease'
+                        }}
+                      >
+                        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎮</div>
+                        <h3 style={{ fontSize: '1.1rem', marginBottom: '0.3rem' }}>Modo Local</h3>
+                        <p style={{ fontSize: '0.8rem', color: !isMultiplayer ? '#fff' : '#888', opacity: 0.9 }}>Dos jugadores, mismo dispositivo</p>
+                      </motion.div>
+
+                      <motion.div
+                        className={`mode-card ${isMultiplayer ? 'selected' : ''}`}
+                        onClick={() => {
+                          setIsMultiplayer(true);
+                          if (soundEnabled) sfx.playClick();
+                        }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.98 }}
+                        style={{
+                          padding: '1.2rem 1.5rem',
+                          background: isMultiplayer ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'rgba(255, 255, 255, 0.05)',
+                          border: isMultiplayer ? '3px solid #667eea' : '2px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '12px',
+                          cursor: 'pointer',
+                          minWidth: '200px',
+                          flex: 1,
+                          transition: 'all 0.3s ease'
+                        }}
+                      >
+                        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🌐</div>
+                        <h3 style={{ fontSize: '1.1rem', marginBottom: '0.3rem' }}>Multijugador</h3>
+                        <p style={{ fontSize: '0.8rem', color: isMultiplayer ? '#fff' : '#888', opacity: 0.9 }}>En línea con otros jugadores</p>
+                      </motion.div>
+                    </div>
+                  </div>
+                  
+                  <div className="wizard-nav wizard-nav--end">
+                    <motion.button
+                      className="wizard-btn-next"
+                      onClick={() => {
+                        if (isMultiplayer) {
+                          // Si es multijugador, crear sala e ir directo al lobby
+                          const newRoomId = 'room_' + Date.now();
+                          setRoomId(newRoomId);
+                          setPhase('lobby');
+                          if (soundEnabled) sfx.playClick();
+                        } else {
+                          // Si es local, seguir al siguiente paso
+                          goNext();
+                        }
+                      }}
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      {isMultiplayer ? '🌐 Crear Sala →' : 'Continuar →'}
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ─ PASO 2: Jugadores ─ */}
+              {menuStep === 2 && (
+                <motion.div
+                  key="step2"
                   custom={stepDirection}
                   variants={stepVariants}
                   initial="enter"
@@ -443,7 +635,8 @@ export default function MathGame() {
                       </div>
                     ))}
                   </div>
-                  <div className="wizard-nav wizard-nav--end">
+                  <div className="wizard-nav">
+                    <button className="wizard-btn-back" onClick={goBack}>← Modo</button>
                     <motion.button
                       className="wizard-btn-next"
                       onClick={goNext}
@@ -456,10 +649,10 @@ export default function MathGame() {
                 </motion.div>
               )}
 
-              {/* ─ PASO 2: Configuración ─ */}
-              {menuStep === 2 && (
+              {/* ─ PASO 3: Configuración ─ */}
+              {menuStep === 3 && (
                 <motion.div
-                  key="step2"
+                  key="step3"
                   custom={stepDirection}
                   variants={stepVariants}
                   initial="enter"
@@ -612,10 +805,10 @@ export default function MathGame() {
                 </motion.div>
               )}
 
-              {/* ─ PASO 3: ¡A Jugar! ─ */}
-              {menuStep === 3 && (
+              {/* ─ PASO 4: ¡A Jugar! ─ */}
+              {menuStep === 4 && (
                 <motion.div
-                  key="step3"
+                  key="step4"
                   custom={stepDirection}
                   variants={stepVariants}
                   initial="enter"
@@ -636,6 +829,7 @@ export default function MathGame() {
                   </div>
 
                   <div className="summary-chips">
+                    <span className="summary-chip">{isMultiplayer ? '🌐 Multijugador' : '🎮 Local'}</span>
                     <span className="summary-chip">🎯 {DIFFICULTY_LABELS[difficulty - 1]}</span>
                     {timerEnabled && <span className="summary-chip">⏱ {timerSeconds}s / ronda</span>}
                     {globalTimerEnabled && <span className="summary-chip">🕐 {globalTimerSeconds}s total</span>}
@@ -645,12 +839,21 @@ export default function MathGame() {
 
                   <motion.button
                     className="btn-start btn-start--glow"
-                    onClick={startGame}
+                    onClick={() => {
+                      if (isMultiplayer) {
+                        const newRoomId = 'room_' + Date.now();
+                        setRoomId(newRoomId);
+                        setPhase('lobby');
+                      } else {
+                        startGame();
+                      }
+                      if (soundEnabled) sfx.playClick();
+                    }}
                     whileHover={{ scale: 1.04 }}
                     whileTap={{ scale: 0.97 }}
                     aria-label="Comenzar la batalla matemática"
                   >
-                    ⚔️ ¡Comenzar Batalla!
+                    {isMultiplayer ? '🌐 Crear Sala' : '⚔️ ¡Comenzar Batalla!'}
                   </motion.button>
 
                   <div className="wizard-nav wizard-nav--center">
@@ -704,6 +907,12 @@ export default function MathGame() {
           <div style={{marginRight:16,display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontWeight:700,color:'var(--yellow-main)'}}>⏰</span>
             <span style={{fontWeight:700,color:'var(--yellow-main)'}}>{formatGameTime(globalTimeLeft)}</span>
+          </div>
+        )}
+        {isMultiplayer && phase === 'playing' && (
+          <div style={{marginRight:16,display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontWeight:700,color:'var(--purple-main)'}}>🎯</span>
+            <span style={{fontWeight:600,color:'var(--text-primary)',fontSize:'0.9rem'}}>Meta: 10 puntos</span>
           </div>
         )}
         <button
@@ -773,7 +982,6 @@ export default function MathGame() {
                 <motion.div
                   key={i}
                   className={`player-card ${turn === i && phase === 'playing' ? 'active' : ''}`}
-                  animate={turn === i ? { scale: 1.08 } : { scale: 1 }}
                   initial={{ opacity: 0, y: -30 }}
                   animate={{ opacity: 1, y: 0, scale: turn === i ? 1.08 : 1 }}
                   exit={{ opacity: 0, y: 30 }}
@@ -783,15 +991,14 @@ export default function MathGame() {
                 >
                   <motion.div
                     className="player-avatar-game"
+                    initial={{ scale: 0.7, opacity: 0 }}
                     animate={
                       feedback && turn === i
                         ? feedback.type === 'correct'
-                          ? { rotate: [0, -10, 10, -5, 0], scale: [1, 1.18, 1] }
-                          : { x: [0, -5, 5, -3, 0] }
-                        : {}
+                          ? { rotate: [0, -10, 10, -5, 0], scale: [1, 1.18, 1], opacity: 1 }
+                          : { x: [0, -5, 5, -3, 0], scale: 1, opacity: 1 }
+                        : { scale: 1, opacity: 1 }
                     }
-                    initial={{ scale: 0.7, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.7, opacity: 0 }}
                     transition={{ duration: 0.5 }}
                   >
@@ -836,24 +1043,28 @@ export default function MathGame() {
           </AnimatePresence>
         </nav>
 
-        {/* Tug Characters pulling rope */}
-        <TugCharacters
-          position={ropePos}
-          max={MAX_ROPE}
-          player1Color={players[0].color}
-          player2Color={players[1].color}
-          pulling={pulling}
-          player1Img={getAvatarSrc(players[0].avatarId)}
-          player2Img={getAvatarSrc(players[1].avatarId)}
-        />
+        {/* Tug Characters pulling rope - Solo en modo local (2 jugadores) */}
+        {!isMultiplayer && players.length === 2 && (
+          <>
+            <TugCharacters
+              position={ropePos}
+              max={MAX_ROPE}
+              player1Color={players[0].color}
+              player2Color={players[1].color}
+              pulling={pulling}
+              player1Img={getAvatarSrc(players[0].avatarId)}
+              player2Img={getAvatarSrc(players[1].avatarId)}
+            />
 
-        {/* Rope progress bar */}
-        <Rope
-          position={ropePos}
-          max={MAX_ROPE}
-          player1Color={players[0].color}
-          player2Color={players[1].color}
-        />
+            {/* Rope progress bar */}
+            <Rope
+              position={ropePos}
+              max={MAX_ROPE}
+              player1Color={players[0].color}
+              player2Color={players[1].color}
+            />
+          </>
+        )}
 
         {/* Game Area Mejorada */}
         {phase === 'finished' ? (
@@ -884,9 +1095,15 @@ export default function MathGame() {
             <h2 className="winner-text">
               ¡{players[winner].name} gana la batalla!
             </h2>
-            <p className="winner-stats">
-              Puntuación final: {players[0].score} - {players[1].score}
-            </p>
+            {isMultiplayer ? (
+              <p className="winner-stats">
+                Puntuación ganadora: {players[winner].score} puntos
+              </p>
+            ) : (
+              <p className="winner-stats">
+                Puntuación final: {players[0].score} - {players[1].score}
+              </p>
+            )}
             <div style={{display:'flex',justifyContent:'center',gap:24,margin:'24px 0'}}>
               {players.map((p,i)=>(
                 <div key={i} style={{background:'var(--bg-card)',borderRadius:16,padding:'16px 20px',minWidth:140}}>

@@ -1587,3 +1587,30 @@ input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
 }
+
+/* ─── Mode selection cards ─────────────────────────────────── */
+.mode-card {
+  position: relative;
+  text-align: center;
+  user-select: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.mode-card.selected {
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+}
+
+.mode-card:hover {
+  box-shadow: 0 6px 18px rgba(102, 126, 234, 0.3);
+}
+
+.mode-card h3 {
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.mode-card p {
+  margin: 0;
+  opacity: 0.9;
+}

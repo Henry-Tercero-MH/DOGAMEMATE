@@ -1,0 +1,61 @@
+// API de Google Apps Script para el módulo multijugador
+const API_URL = 'https://script.google.com/macros/s/AKfycbzRgy1bzZl4A7hQJ9_Br_fyKGF7e5XFmDERZLdFMDc4REq4DJN8AVQncWK7gyEcCJoIbw/exec';
+
+// Obtener datos de una partida
+export async function fetchGameData(gameId) {
+  const res = await fetch(`${API_URL}?gameId=${gameId}`);
+  return await res.json();
+}
+
+// Guardar datos de un jugador
+export async function savePlayerData(gameId, playerName, score) {
+  const payload = { action: 'savePlayerData', gameId, playerName, score };
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  return await res.text();
+}
+
+// Registrar jugador en sala
+export async function registerPlayer(playerId, playerName, avatar, roomId) {
+  const payload = { action: 'registerPlayer', playerId, playerName, avatar, roomId };
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  return await res.text();
+}
+
+// Crear sala multijugador
+export async function createRoom(roomId, roomName, maxPlayers) {
+  const payload = { action: 'createRoom', roomId, roomName, maxPlayers };
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+  return await res.text();
+}
+
+// Listar jugadores de una sala
+export async function listPlayers(roomId) {
+  const res = await fetch(`${API_URL}?action=listPlayers&roomId=${roomId}`);
+  return await res.json();
+}
+
+// Listar salas disponibles
+export async function listRooms() {
+  const res = await fetch(`${API_URL}?action=listRooms`);
+  return await res.json();
+}
+
+export { API_URL };
