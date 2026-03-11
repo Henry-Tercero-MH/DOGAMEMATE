@@ -90,6 +90,7 @@ export default function MathGame() {
   const [isMultiplayer, setIsMultiplayer] = useState(false);
   const [roomId, setRoomId] = useState('');
   const [isJoiningRoom, setIsJoiningRoom] = useState(false); // true si se unió vía QR
+  const [joinRoomId, setJoinRoomId] = useState(''); // ID de sala para unirse manualmente
   const [playerId, setPlayerId] = useState(() => localStorage.getItem('playerId') || '');
   const [isHost, setIsHost] = useState(false);
   const [teamId, setTeamId] = useState('A'); // Equipo del jugador ('A' o 'B')
@@ -227,8 +228,20 @@ export default function MathGame() {
               phase: 'playing'
             }));
             
-            // Generar un problema local (temporal hasta implementar sincronización)
-            setProblem(generateProblem(difficulty));
+            // Usar problema sincronizado del servidor
+            if (state.currentProblem) {
+              try {
+                const serverProblem = JSON.parse(state.currentProblem);
+                setProblem(serverProblem);
+                console.log('📖 Usando problema sincronizado del servidor:', serverProblem);
+              } catch (err) {
+                console.error('❌ Error parseando problema del servidor:', err);
+                setProblem(generateProblem(difficulty)); // Fallback
+              }
+            } else {
+              console.log('⚠️ No hay problema sincronizado, generando local');
+              setProblem(generateProblem(difficulty)); // Fallback
+            }
             
             // Inicializar estado del balón
             setBallPosition(state.ballPosition || 'A');
@@ -259,6 +272,20 @@ export default function MathGame() {
         const response = await getGameState(roomId);
         if (response.success && response.data) {
           const state = response.data;
+          
+          // Sincronizar problema del servidor (para que todos vean el mismo)
+          if (state.currentProblem && !isHost) {
+            try {
+              const serverProblem = JSON.parse(state.currentProblem);
+              // Solo actualizar si es diferente al actual
+              if (JSON.stringify(serverProblem) !== JSON.stringify(problem)) {
+                setProblem(serverProblem);
+                console.log('🔄 Problema sincronizado desde servidor');
+              }
+            } catch (err) {
+              console.error('❌ Error parseando problema del servidor:', err);
+            }
+          }
           
           // Actualizar posición del balón y scores
           if (state.ballPosition !== ballPosition) {
@@ -297,7 +324,10 @@ export default function MathGame() {
             }
             
             setWinner(winningTeam); // Actualizar estado del ganador
-            alert(`🏆 ¡Equipo ${winningTeam} gana!`);
+            // Solo mostrar alert al host para evitar spam
+            if (isHost) {
+              alert(`🏆 ¡Equipo ${winningTeam} gana!`);
+            }
             setPhase('finished');
             if (soundEnabled) sfx.playWin();
           }
@@ -616,6 +646,52 @@ export default function MathGame() {
   const goNext = () => { setStepDirection(1); setMenuStep((s) => s + 1); };
   const goBack = () => { setStepDirection(-1); setMenuStep((s) => s - 1); };
 
+  // Función para unirse a sala por ID
+  const handleJoinRoom = async () => {
+    if (joinRoomId.length < 8) {
+      alert('⚠️ El ID de la sala debe tener al menos 8 caracteres');
+      return;
+    }
+
+    try {
+      // Verificar si la sala existe
+      const response = await getGameState(joinRoomId);
+      if (!response.success) {
+        alert('❌ No se encontró una sala con ese ID. Verifica el código e inténtalo de nuevo.');
+        setJoinRoomId('');
+        return;
+      }
+
+      // Configurar jugador y unirse
+      const newPlayerId = playerId || `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      setRoomId(joinRoomId);
+      setPlayerId(newPlayerId);
+      setIsHost(false); // No es anfitrión, se está uniendo
+      setIsJoiningRoom(true); // Sí se está uniendo vía ID manual
+      setTeamId('A'); // Equipo por defecto (se puede cambiar después)
+      
+      // Guardar en localStorage
+      localStorage.setItem('playerId', newPlayerId);
+      localStorage.setItem('gameState', JSON.stringify({
+        roomId: joinRoomId,
+        playerId: newPlayerId,
+        isHost: false,
+        teamId: 'A',
+        phase: 'lobby'
+      }));
+      
+      setPhase('lobby');
+      if (soundEnabled) sfx.playClick();
+      console.log('🚪 Uniéndose a sala:', joinRoomId);
+      
+    } catch (err) {
+      console.error('Error al unirse a la sala:', err);
+      alert('❌ Error al conectar con la sala. Inténtalo de nuevo.');
+      setJoinRoomId('');
+    }
+  };
+
   // Función para iniciar el juego (solo host)
   const handleStartGame = async () => {
     if (soundEnabled) sfx.playClick();
@@ -630,12 +706,12 @@ export default function MathGame() {
         return;
       }
       
-      // Generar primer problema
+      // Generar primer problema (solo anfitrión)
       const firstProblem = generateProblem(difficulty);
-      const problemId = `prob_${Date.now()}`;
+      const problemJSON = JSON.stringify(firstProblem);
       
-      // Llamar a API para iniciar el juego
-      await startGameAPI(roomId, problemId, playerId);
+      // Llamar a API para iniciar el juego con el problema sincronizado
+      await startGameAPI(roomId, problemJSON, playerId);
       
       // Convertir jugadores del lobby al formato del juego
       const colors = ['#7C6BF0', '#FF6B9D', '#FFD93D', '#6BCB77', '#4D96FF', '#F97316', '#EC4899', '#8B5CF6'];
@@ -847,26 +923,8 @@ export default function MathGame() {
                       className="wizard-btn-next"
                       onClick={() => {
                         if (isMultiplayer) {
-                          // Si es multijugador, crear sala e ir directo al lobby
-                          const newRoomId = 'room_' + Date.now();
-                          const newPlayerId = playerId || `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                          
-                          setRoomId(newRoomId);
-                          setPlayerId(newPlayerId);
-                          setIsHost(true); // El que crea la sala es el anfitrión
-                          setIsJoiningRoom(false); // No se está uniendo, está creando
-                          
-                          // Guardar en localStorage para persistencia
-                          localStorage.setItem('playerId', newPlayerId);
-                          localStorage.setItem('gameState', JSON.stringify({
-                            roomId: newRoomId,
-                            playerId: newPlayerId,
-                            isHost: true,
-                            teamId: 'A', // Host no tiene equipo específico
-                            phase: 'lobby'
-                          }));
-                          
-                          setPhase('lobby');
+                          // Si es multijugador, ir al paso de selección (crear/unirse)
+                          setMenuStep(1.5); // Nuevo paso intermedio
                           if (soundEnabled) sfx.playClick();
                         } else {
                           // Si es local, seguir al siguiente paso
@@ -876,7 +934,150 @@ export default function MathGame() {
                       whileHover={{ scale: 1.04 }}
                       whileTap={{ scale: 0.97 }}
                     >
-                      {isMultiplayer ? '🌐 Crear Sala →' : 'Continuar →'}
+                      {isMultiplayer ? '🌐 Siguiente →' : 'Continuar →'}
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ─ PASO 1.5: Multijugador - Crear o Unirse ─ */}
+              {menuStep === 1.5 && (
+                <motion.div
+                  key="step1.5"
+                  custom={stepDirection}
+                  variants={stepVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.28, ease: 'easeInOut' }}
+                >
+                  <div className="menu-section">
+                    <h2 className="menu-section-title">🌐 Multijugador</h2>
+                    <p className="menu-section-desc">Elige una opción para jugar en línea</p>
+                    
+                    <div className="multiplayer-options" style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: '1rem',
+                      marginBottom: '1.5rem'
+                    }}>
+                      {/* Crear nueva sala */}
+                      <motion.div
+                        className="option-card"
+                        onClick={() => {
+                          // Crear sala nueva
+                          const newRoomId = 'room_' + Date.now();
+                          const newPlayerId = playerId || `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                          
+                          setRoomId(newRoomId);
+                          setPlayerId(newPlayerId);
+                          setIsHost(true);
+                          setIsJoiningRoom(false);
+                          
+                          localStorage.setItem('playerId', newPlayerId);
+                          localStorage.setItem('gameState', JSON.stringify({
+                            roomId: newRoomId,
+                            playerId: newPlayerId,
+                            isHost: true,
+                            teamId: 'A',
+                            phase: 'lobby'
+                          }));
+                          
+                          setPhase('lobby');
+                          if (soundEnabled) sfx.playClick();
+                        }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.98 }}
+                        style={{
+                          padding: '1.5rem 1.2rem',
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          border: '3px solid #667eea',
+                          borderRadius: '12px',
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          color: 'white'
+                        }}
+                      >
+                        <div style={{ fontSize: '2.5rem', marginBottom: '0.8rem' }}>🏗️</div>
+                        <h3 style={{ fontSize: '1.1rem', marginBottom: '0.3rem', color: 'white' }}>Crear Sala</h3>
+                        <p style={{ fontSize: '0.8rem', opacity: 0.9, color: 'white' }}>Crea una nueva partida y comparte el código</p>
+                      </motion.div>
+
+                      {/* Unirse a sala existente */}
+                      <motion.div
+                        className="option-card"
+                        style={{
+                          padding: '1.5rem 1.2rem',
+                          background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                          border: '3px solid #f093fb',
+                          borderRadius: '12px',
+                          textAlign: 'center',
+                          color: 'white'
+                        }}
+                      >
+                        <div style={{ fontSize: '2.5rem', marginBottom: '0.8rem' }}>🚪</div>
+                        <h3 style={{ fontSize: '1.1rem', marginBottom: '0.8rem', color: 'white' }}>Unirse a Sala</h3>
+                        
+                        <input
+                          type="text"
+                          placeholder="Ingresa el ID de la sala"
+                          value={joinRoomId}
+                          onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            borderRadius: '8px',
+                            border: '2px solid rgba(255,255,255,0.3)',
+                            background: 'rgba(255,255,255,0.1)',
+                            color: 'white',
+                            fontSize: '0.9rem',
+                            marginBottom: '0.8rem',
+                            textAlign: 'center',
+                            fontFamily: 'monospace',
+                            letterSpacing: '1px'
+                          }}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && joinRoomId.length >= 8) {
+                              handleJoinRoom();
+                            }
+                          }}
+                        />
+                        
+                        <motion.button
+                          onClick={handleJoinRoom}
+                          disabled={joinRoomId.length < 8}
+                          whileHover={joinRoomId.length >= 8 ? { scale: 1.05 } : {}}
+                          whileTap={joinRoomId.length >= 8 ? { scale: 0.95 } : {}}
+                          style={{
+                            width: '100%',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            background: joinRoomId.length >= 8 ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)',
+                            color: 'white',
+                            fontSize: '0.85rem',
+                            cursor: joinRoomId.length >= 8 ? 'pointer' : 'not-allowed',
+                            opacity: joinRoomId.length >= 8 ? 1 : 0.5,
+                            transition: 'all 0.3s ease'
+                          }}
+                        >
+                          {joinRoomId.length >= 8 ? '🚀 Unirse' : 'Mín. 8 caracteres'}
+                        </motion.button>
+                      </motion.div>
+                    </div>
+                  </div>
+                  
+                  <div className="wizard-nav wizard-nav--between">
+                    <motion.button
+                      className="wizard-btn-prev"
+                      onClick={() => {
+                        setMenuStep(1);
+                        if (soundEnabled) sfx.playClick();
+                      }}
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      ← Atrás
                     </motion.button>
                   </div>
                 </motion.div>
