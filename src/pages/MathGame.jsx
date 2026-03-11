@@ -88,9 +88,24 @@ export default function MathGame() {
   const [gameTimeLeft, setGameTimeLeft] = useState(0);
   const [isMultiplayer, setIsMultiplayer] = useState(false);
   const [roomId, setRoomId] = useState('');
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false); // true si se unió vía QR
   const inputRef = useRef(null);
   const fullscreenRef = useRef(null);
   const sfx = useSoundEffects();
+
+  // Detectar si la URL contiene un roomId para unirse automáticamente
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlRoomId = params.get('roomId');
+    
+    if (urlRoomId && !isMultiplayer && phase === 'menu') {
+      console.log('🔗 Detectado roomId en URL:', urlRoomId);
+      setIsMultiplayer(true);
+      setRoomId(urlRoomId);
+      setIsJoiningRoom(true); // Marcamos que se está uniendo
+      setPhase('lobby');
+    }
+  }, []); // Solo al montar el componente
 
   // Sonido de menú al entrar en el menú
   useEffect(() => {
@@ -377,7 +392,7 @@ export default function MathGame() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Lobby roomId={roomId} />
+          <Lobby roomId={roomId} isJoining={isJoiningRoom} />
           <div style={{ marginTop: '2rem', textAlign: 'center' }}>
             <motion.button
               className="btn-start"

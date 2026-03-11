@@ -3,7 +3,7 @@ import './Lobby.css';
 import { listPlayers } from '../utils/multiplayerAPI';
 import { QRCodeSVG } from 'qrcode.react';
 
-export default function Lobby({ roomId }) {
+export default function Lobby({ roomId, isJoining = false }) {
   const [players, setPlayers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,27 +29,35 @@ export default function Lobby({ roomId }) {
 
   return (
     <div className="lobby-container">
-      <h2>🎮 Sala de Espera</h2>
+      <h2>{isJoining ? '👋 Uniéndote a la Sala' : '🎮 Sala de Espera'}</h2>
+      
+      {isJoining && (
+        <p style={{ color: '#6BCB77', marginBottom: '1rem', fontSize: '0.95rem', textAlign: 'center' }}>
+          Te has unido correctamente. Espera a que el anfitrión inicie la partida.
+        </p>
+      )}
       
       <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
-        {/* QR Code */}
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ 
-            background: '#fff', 
-            padding: '1rem', 
-            borderRadius: '12px', 
-            display: 'inline-block',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
-          }}>
-            <QRCodeSVG 
-              value={`${window.location.origin}/?roomId=${roomId}`} 
-              size={180}
-              level="M"
-              includeMargin={true}
-            />
+        {/* QR Code - Solo se muestra si estás creando la sala */}
+        {!isJoining && (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ 
+              background: '#fff', 
+              padding: '1rem', 
+              borderRadius: '12px', 
+              display: 'inline-block',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+            }}>
+              <QRCodeSVG 
+                value={`${window.location.origin}/?roomId=${roomId}`} 
+                size={180}
+                level="M"
+                includeMargin={true}
+              />
+            </div>
+            <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#aaa' }}>Escanea para unirte</p>
           </div>
-          <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#aaa' }}>Escanea para unirte</p>
-        </div>
+        )}
 
         {/* Room Info */}
         <div style={{ textAlign: 'left', flex: '1', minWidth: '200px' }}>
