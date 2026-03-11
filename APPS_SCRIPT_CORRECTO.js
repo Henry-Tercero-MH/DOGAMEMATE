@@ -14,7 +14,7 @@ function getSpreadsheet() {
 
 function doGet(e) {
   try {
-    if (!e || !e.parameter) {
+    if (!e || !e.parameter || !e.parameter.action) {
       return jsonOk({ message: 'DoGameMate API v1.0' });
     }
 
