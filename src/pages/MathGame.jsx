@@ -385,9 +385,10 @@ export default function MathGame() {
                 if (soundEnabled) sfx.playClick();
                 try {
                   // Cargar jugadores conectados del lobby
-                  const connectedPlayers = await listPlayers(roomId);
+                  const response = await listPlayers(roomId);
+                  const connectedPlayers = response.success ? response.data : [];
                   
-                  if (connectedPlayers.length === 0) {
+                  if (!connectedPlayers || connectedPlayers.length === 0) {
                     alert('No hay jugadores conectados. Espera a que se unan jugadores.');
                     return;
                   }
@@ -395,10 +396,10 @@ export default function MathGame() {
                   // Convertir jugadores del lobby al formato del juego
                   const colors = ['#7C6BF0', '#FF6B9D', '#FFD93D', '#6BCB77', '#4D96FF', '#F97316', '#EC4899', '#8B5CF6'];
                   const gamePlayers = connectedPlayers.map((player, idx) => ({
-                    name: player[1] || `Jugador ${idx + 1}`, // playerName
+                    name: player.playerName || `Jugador ${idx + 1}`,
                     score: 0,
                     color: colors[idx % colors.length],
-                    avatarId: player[2] || 'nino', // avatar
+                    avatarId: player.avatar || 'nino',
                   }));
                   
                   // Actualizar jugadores y empezar el juego

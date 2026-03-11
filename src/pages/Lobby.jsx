@@ -13,10 +13,12 @@ export default function Lobby({ roomId }) {
     const fetchPlayers = async () => {
       setLoading(true);
       try {
-        const data = await listPlayers(roomId);
-        setPlayers(data);
+        const response = await listPlayers(roomId);
+        const data = response.success ? response.data : [];
+        setPlayers(data || []);
       } catch (err) {
         console.error('Error cargando jugadores:', err);
+        setPlayers([]);
       }
       setLoading(false);
     };
