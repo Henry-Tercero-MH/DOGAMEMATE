@@ -260,9 +260,9 @@ export default function MathGame() {
             setTeamScores({ A: state.scoreTeamA, B: state.scoreTeamB });
           }
           
-          // Verificar si hay un ganador
-          if (state.scoreTeamA >= 5 || state.scoreTeamB >= 5) {
-            const winner = state.scoreTeamA >= 5 ? 'A' : 'B';
+          // Verificar si hay un ganador (solo si aún no se ha establecido)
+          if ((state.scoreTeamA >= 5 || state.scoreTeamB >= 5) && winner === null) {
+            const winningTeam = state.scoreTeamA >= 5 ? 'A' : 'B';
             
             // Guardar resultados del juego (solo el host)
             if (isHost && gameStartTime) {
@@ -275,7 +275,7 @@ export default function MathGame() {
                 
                 await savePlayerData(
                   roomId,
-                  winner,
+                  winningTeam,
                   state.scoreTeamA,
                   state.scoreTeamB,
                   totalPlayers,
@@ -288,8 +288,8 @@ export default function MathGame() {
               }
             }
             
-            setWinner(winner); // Actualizar estado del ganador
-            alert(`🏆 ¡Equipo ${winner} gana!`);
+            setWinner(winningTeam); // Actualizar estado del ganador
+            alert(`🏆 ¡Equipo ${winningTeam} gana!`);
             setPhase('finished');
             if (soundEnabled) sfx.playWin();
           }
@@ -304,7 +304,7 @@ export default function MathGame() {
     const interval = setInterval(syncGameState, 2000);
 
     return () => clearInterval(interval);
-  }, [isMultiplayer, phase, roomId, ballPosition, teamScores, soundEnabled, sfx, isHost, gameStartTime]);
+  }, [isMultiplayer, phase, roomId, ballPosition, teamScores, soundEnabled, sfx, isHost, gameStartTime, winner]);
 
   const currentPlayer = players[turn];
 
@@ -385,38 +385,17 @@ export default function MathGame() {
       const currentTeam = ballPosition; // El equipo que tiene el balón
       const oppositeTeam = currentTeam === 'A' ? 'B' : 'A';
       
-      // Guardar la respuesta en la base de datos
-      try {
-        const problemId = `prob_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const playerName = players[0]?.name || 'Jugador';
-        const points = isCorrect ? 1 : 0;
-        
-        await submitAnswer(
-          roomId,
-          problemId,
-          playerId,
-          playerName,
-          teamId,
-          userAnswer,
-          isCorrect,
-          points
-        );
-        console.log('✅ Respuesta guardada:', { problemId, playerName, teamId, answer: userAnswer, isCorrect });
-      } catch (err) {
-        console.error('❌ Error guardando respuesta:', err);
-      }
+      // Mostrar feedback INMEDIATAMENTE (no esperar al Excel)
+      setFeedback({ type: isCorrect ? 'correct' : 'wrong', correctAnswer: problem?.answerLatex || '' });
       
       if (isCorrect) {
         // Respuesta correcta: lanzar balón al otro equipo
         setBallMoving(true);
         if (soundEnabled) sfx.playCorrect();
         
-        // Actualizar en la base de datos
-        try {
-          await updateGameState(roomId, null, oppositeTeam, teamScores.A, teamScores.B, oppositeTeam);
-        } catch (err) {
-          console.error('Error actualizando estado:', err);
-        }
+        // Actualizar en la base de datos EN BACKGROUND (no bloquear UI)
+        updateGameState(roomId, null, oppositeTeam, teamScores.A, teamScores.B, oppositeTeam)
+          .catch(err => console.error('Error actualizando estado:', err));
         
         setTimeout(() => {
           setBallPosition(oppositeTeam);
@@ -425,8 +404,6 @@ export default function MathGame() {
           setRound((r) => r + 1);
           if (soundEnabled) sfx.playPull();
         }, 800);
-        
-        setFeedback({ type: 'correct', correctAnswer: problem?.answerLatex || '' });
       } else {
         // Respuesta incorrecta: balón cae, punto para el otro equipo
         setBallFalling(true);
@@ -436,12 +413,9 @@ export default function MathGame() {
         newScores[oppositeTeam] += 1;
         setTeamScores(newScores);
         
-        // Actualizar en la base de datos
-        try {
-          await updateGameState(roomId, null, currentTeam, newScores.A, newScores.B, currentTeam);
-        } catch (err) {
-          console.error('Error actualizando estado:', err);
-        }
+        // Actualizar en la base de datos EN BACKGROUND
+        updateGameState(roomId, null, currentTeam, newScores.A, newScores.B, currentTeam)
+          .catch(err => console.error('Error actualizando estado:', err));
         
         setTimeout(() => {
           setBallFalling(false);
@@ -451,11 +425,10 @@ export default function MathGame() {
           setRound((r) => r + 1);
         }, 2000);
         
-        setFeedback({ type: 'wrong', correctAnswer: problem?.answerLatex || '' });
-        
         // Verificar victoria (primer equipo en llegar a 5 puntos)
         if (newScores[oppositeTeam] >= 5) {
           setTimeout(() => {
+            setWinner(oppositeTeam); // Establecer ganador ANTES del alert
             alert(`¡Equipo ${oppositeTeam} gana!`);
             setPhase('finished');
             if (soundEnabled) sfx.playWin();
@@ -463,6 +436,27 @@ export default function MathGame() {
           return;
         }
       }
+      
+      // Guardar la respuesta en la base de datos EN BACKGROUND (fire-and-forget)
+      // No usar await para no bloquear la UI
+      const problemId = `prob_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const playerName = players[0]?.name || 'Jugador';
+      const points = isCorrect ? 1 : 0;
+      
+      submitAnswer(
+        roomId,
+        problemId,
+        playerId,
+        playerName,
+        teamId,
+        userAnswer,
+        isCorrect,
+        points
+      ).then(() => {
+        console.log('✅ Respuesta guardada en Excel:', { problemId, playerName, teamId, answer: userAnswer, isCorrect });
+      }).catch(err => {
+        console.error('❌ Error guardando respuesta:', err);
+      });
       
       return; // Salir del callback en modo multijugador
     }
@@ -543,7 +537,7 @@ export default function MathGame() {
   }, [ropePos, players, turn, problem, soundEnabled, sfx, stats, isMultiplayer, ballPosition, teamScores, roomId, playerId, teamId]);
 
   const handleAnswer = (answer, isCorrectChoice = null) => {
-    if (feedback || winner !== null) return;
+    if (feedback || winner !== null) return; // Prevenir respuestas múltiples
     let isCorrect;
     let userAnswer = answer;
     
@@ -1549,6 +1543,37 @@ export default function MathGame() {
                       Los jugadores están respondiendo desde sus dispositivos
                     </p>
                     
+                    {/* Mostrar el problema actual (solo la ecuación, sin opciones) */}
+                    {problem && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        style={{
+                          background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+                          border: '2px solid rgba(102, 126, 234, 0.3)',
+                          borderRadius: '20px',
+                          padding: '2rem',
+                          marginBottom: '2rem',
+                          boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+                        }}
+                      >
+                        <div style={{ marginBottom: '1rem', color: '#aaa', fontSize: '0.9rem' }}>
+                          {problem.category}
+                        </div>
+                        {problem.prompt && (
+                          <p style={{ marginBottom: '1.5rem', fontSize: '1rem', color: '#ccc' }}>
+                            {problem.prompt}
+                          </p>
+                        )}
+                        <div style={{ fontSize: '2.5rem', padding: '1.5rem 0' }}>
+                          <MathDisplay latex={problem.latex} displayMode />
+                        </div>
+                        <p style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#888', fontStyle: 'italic' }}>
+                          ⏳ Esperando respuestas de los jugadores...
+                        </p>
+                      </motion.div>
+                    )}
+                    
                     {/* Lista de jugadores por equipo */}
                     <div style={{ 
                       display: 'grid', 
@@ -1582,68 +1607,114 @@ export default function MathGame() {
                 ) : (
                   /* VISTA DEL JUGADOR - Ve el problema y puede responder */
                   <>
+                    {/* Badge del equipo más grande y visible */}
                     <motion.div
-                      className="player-team-badge"
                       initial={{ opacity: 0, y: -20 }}
                       animate={{ opacity: 1, y: 0 }}
                       style={{
                         textAlign: 'center',
-                        marginBottom: '1rem',
-                        padding: '0.75rem',
-                        background: teamId === 'A' ? 'rgba(255,107,157,0.2)' : 'rgba(124,107,240,0.2)',
-                        borderRadius: '12px',
-                        fontSize: '1.2rem',
+                        marginBottom: '1.5rem',
+                        padding: '1rem 1.5rem',
+                        background: teamId === 'A' ? 'linear-gradient(135deg, rgba(255,107,157,0.3) 0%, rgba(255,107,157,0.1) 100%)' : 'linear-gradient(135deg, rgba(124,107,240,0.3) 0%, rgba(124,107,240,0.1) 100%)',
+                        border: `3px solid ${teamId === 'A' ? '#FF6B9D' : '#7C6BF0'}`,
+                        borderRadius: '16px',
+                        fontSize: '1.8rem',
                         fontWeight: 'bold',
-                        color: teamId === 'A' ? '#FF6B9D' : '#7C6BF0'
+                        color: teamId === 'A' ? '#FF6B9D' : '#7C6BF0',
+                        boxShadow: `0 8px 24px ${teamId === 'A' ? 'rgba(255,107,157,0.3)' : 'rgba(124,107,240,0.3)'}`
                       }}
                     >
                       {teamId === 'A' ? '🔴 Equipo A' : '🔵 Equipo B'}
                     </motion.div>
 
-                    {/* Problem Card para Jugador */}
+                    {/* Scoreboard visible para el jugador */}
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'center', 
+                      gap: '2rem', 
+                      marginBottom: '2rem',
+                      fontSize: '1.5rem',
+                      fontWeight: 'bold'
+                    }}>
+                      <div style={{ color: '#FF6B9D' }}>
+                        🔴 {teamScores.A}
+                      </div>
+                      <div style={{ color: '#7C6BF0' }}>
+                        🔵 {teamScores.B}
+                      </div>
+                    </div>
+
+                    {/* Problem Card para Jugador - Simplificado y más grande */}
                     {problem && (
                       <motion.section
-                        className="problem-card"
                         key={round}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
                         transition={{ duration: 0.3 }}
-                        aria-label="Problema matemático"
+                        style={{
+                          background: 'var(--bg-card)',
+                          borderRadius: '20px',
+                          padding: '2rem 1.5rem',
+                          boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+                          border: '2px solid rgba(255,255,255,0.1)'
+                        }}
                       >
-                        {/* Professor gives the problem */}
-                        <div className="problem-header">
-                          <img src={imgGenio2} alt="Profesor" className="professor-img" />
-                          <div className="problem-header-text">
-                            <span className="problem-category">{problem.category}</span>
-                            {problem.prompt && <p className="problem-prompt">{problem.prompt}</p>}
-                          </div>
-                        </div>
-
-                        <div className="problem-equation" tabIndex={0} aria-label="Ecuación a resolver">
+                        {/* Ecuación más grande y centrada */}
+                        <div style={{ 
+                          textAlign: 'center',
+                          marginBottom: '2rem',
+                          fontSize: '2rem',
+                          padding: '1.5rem',
+                          background: 'rgba(102, 126, 234, 0.1)',
+                          borderRadius: '12px',
+                          minHeight: '100px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
                           <MathDisplay latex={problem.latex} displayMode />
                         </div>
 
-                        {/* Number input - SIEMPRE mostrar teclado en modo multijugador */}
+                        {/* Number input - Teclado más grande */}
                         {problem.inputType === 'number' && !feedback && (
-                          <NumericKeypad
-                            value={input}
-                            onChange={setInput}
-                            onSubmit={handleKeypadSubmit}
-                            aria-label="Teclado numérico en pantalla"
-                          />
+                          <div style={{ marginTop: '1.5rem' }}>
+                            <NumericKeypad
+                              value={input}
+                              onChange={setInput}
+                              onSubmit={handleKeypadSubmit}
+                              aria-label="Teclado numérico en pantalla"
+                            />
+                          </div>
                         )}
 
-                        {/* Multiple choice */}
+                        {/* Multiple choice - Botones más grandes */}
                         {problem.inputType === 'choice' && !feedback && (
-                          <div className="choice-list" role="group" aria-label="Opciones de respuesta">
+                          <div style={{ 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            gap: '1rem',
+                            marginTop: '1rem'
+                          }}>
                             {problem.choices.map((choice, idx) => (
                               <motion.button
                                 key={idx}
-                                className={`choice-btn ${selectedChoice === idx ? 'selected' : ''}`}
-                                onClick={() => setSelectedChoice(idx)}
+                                onClick={() => handleChoiceClick(choice)}
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
-                                aria-label={`Opción ${idx + 1}`}
+                                style={{
+                                  padding: '1.5rem 2rem',
+                                  fontSize: '1.3rem',
+                                  background: selectedChoice === idx ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'rgba(255,255,255,0.05)',
+                                  border: `3px solid ${selectedChoice === idx ? '#667eea' : 'rgba(255,255,255,0.1)'}`,
+                                  borderRadius: '12px',
+                                  color: '#fff',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.3s ease',
+                                  minHeight: '80px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
                               >
                                 <MathDisplay latex={choice.latex} />
                               </motion.button>
@@ -1651,41 +1722,42 @@ export default function MathGame() {
                           </div>
                         )}
 
-                        {problem.inputType === 'choice' && selectedChoice !== null && !feedback && (
-                          <motion.button
-                            className="btn-submit-choice"
-                            onClick={handleChoiceSubmit}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                            aria-label="Confirmar respuesta seleccionada"
-                          >
-                            Confirmar
-                          </motion.button>
-                        )}
-
-                        {/* Feedback */}
+                        {/* Feedback más grande y visible */}
                         {feedback && (
                           <motion.div
-                            className={`feedback-box ${feedback.type}`}
-                            initial={{ opacity: 0, scale: 0.9 }}
+                            initial={{ opacity: 0, scale: 0.8 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            role="alert"
-                            aria-live="assertive"
+                            style={{
+                              marginTop: '2rem',
+                              padding: '2rem',
+                              background: feedback.type === 'correct' 
+                                ? 'linear-gradient(135deg, rgba(107, 203, 119, 0.2) 0%, rgba(107, 203, 119, 0.05) 100%)'
+                                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                              border: `3px solid ${feedback.type === 'correct' ? '#6BCB77' : '#ef4444'}`,
+                              borderRadius: '16px',
+                              textAlign: 'center',
+                              fontSize: '1.5rem',
+                              fontWeight: 'bold',
+                              color: feedback.type === 'correct' ? '#6BCB77' : '#ef4444'
+                            }}
                           >
-                            <div className="feedback-icon">
+                            <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
                               {feedback.type === 'correct' ? '🎉' : '😅'}
                             </div>
-                            <div className="feedback-text">
+                            <div>
                               {feedback.type === 'correct' ? (
                                 <span>¡Correcto! 🎊</span>
                               ) : (
                                 <>
-                                  <p>No es correcto.</p>
-                                  <p className="feedback-correct">
+                                  <p style={{ marginBottom: '1rem' }}>No es correcto</p>
+                                  <div style={{ 
+                                    fontSize: '1.2rem',
+                                    padding: '1rem',
+                                    background: 'rgba(0,0,0,0.2)',
+                                    borderRadius: '8px'
+                                  }}>
                                     Respuesta: <MathDisplay latex={feedback.correctAnswer} />
-                                  </p>
+                                  </div>
                                 </>
                               )}
                             </div>
