@@ -1465,30 +1465,47 @@ export default function MathGame() {
               </>
             ) : (
               /* Modo Local - Mostrar jugador ganador */
-              <>
-                <motion.img
-                  src={getAvatarSrc(players[winner].avatarId)}
-                  alt="Avatar del ganador"
-                  className="winner-avatar-img"
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ rotate: [0, -5, 5, -3, 0], scale: [0, 1.1, 1], opacity: 1 }}
-                  transition={{ duration: 1, repeat: Infinity, repeatDelay: 0.5 }}
-                />
-                <motion.img
-                  src={imgGenio}
-                  alt="Genio celebrando"
-                  className="winner-genio-img"
-                  initial={{ opacity: 0, x: 60, scale: 0.7 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
-                />
-                <h2 className="winner-text">
-                  ¡{players[winner].name} gana la batalla!
-                </h2>
-                <p className="winner-stats">
-                  Puntuación final: {players[0].score} - {players[1].score}
-                </p>
-              </>
+              winner !== null && typeof winner === 'number' && players[winner] ? (
+                <>
+                  <motion.img
+                    src={getAvatarSrc(players[winner].avatarId)}
+                    alt="Avatar del ganador"
+                    className="winner-avatar-img"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ rotate: [0, -5, 5, -3, 0], scale: [0, 1.1, 1], opacity: 1 }}
+                    transition={{ duration: 1, repeat: Infinity, repeatDelay: 0.5 }}
+                  />
+                  <motion.img
+                    src={imgGenio}
+                    alt="Genio celebrando"
+                    className="winner-genio-img"
+                    initial={{ opacity: 0, x: 60, scale: 0.7 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    transition={{ delay: 0.5, type: 'spring', stiffness: 200 }}
+                  />
+                  <h2 className="winner-text">
+                    ¡{players[winner].name} gana la batalla!
+                  </h2>
+                  <p className="winner-stats">
+                    Puntuación final: {players[0].score} - {players[1].score}
+                  </p>
+                </>
+              ) : (
+                /* Fallback si hay error con winner */
+                <>
+                  <motion.img
+                    src={imgGenio}
+                    alt="Genio celebrando"
+                    className="winner-genio-img"
+                  />
+                  <h2 className="winner-text">
+                    ¡Juego terminado!
+                  </h2>
+                  <p className="winner-stats">
+                    Revisa los resultados arriba
+                  </p>
+                </>
+              )
             )}
             {/* Estadísticas solo en modo local */}
             {!isMultiplayer && (
