@@ -196,6 +196,52 @@ export default function MathGame() {
     }
   }, [phase, roomId, isMultiplayer, playerId, isHost, teamId]);
 
+  // Polling en el lobby para detectar cuando el host inicia el juego
+  useEffect(() => {
+    if (!isMultiplayer || phase !== 'lobby' || !roomId || isHost) return;
+
+    const checkGameStart = async () => {
+      try {
+        const response = await getGameState(roomId);
+        if (response.success && response.data) {
+          const state = response.data;
+          
+          // Si el estado cambió a 'playing', iniciar el juego en este dispositivo
+          if (state.status === 'playing') {
+            console.log('🎮 El host ha iniciado el juego, cambiando a modo playing...');
+            
+            // Actualizar localStorage
+            localStorage.setItem('gameState', JSON.stringify({
+              roomId,
+              playerId,
+              isHost: false,
+              teamId,
+              phase: 'playing'
+            }));
+            
+            // Generar un problema local (temporal hasta implementar sincronización)
+            setProblem(generateProblem(difficulty));
+            
+            // Inicializar estado del balón
+            setBallPosition(state.ballPosition || 'A');
+            setTeamScores({ A: state.scoreTeamA || 0, B: state.scoreTeamB || 0 });
+            
+            // Cambiar a fase de juego
+            setPhase('playing');
+          }
+        }
+      } catch (err) {
+        console.error('Error verificando inicio del juego:', err);
+      }
+    };
+
+    // Verificar cada 2 segundos
+    checkGameStart();
+    const interval = setInterval(checkGameStart, 2000);
+
+    return () => clearInterval(interval);
+  }, [isMultiplayer, phase, roomId, isHost, playerId, teamId, difficulty]);
+
   // Polling en tiempo real para sincronizar estado del juego (multijugador)
   useEffect(() => {
     if (!isMultiplayer || phase !== 'playing' || !roomId) return;
