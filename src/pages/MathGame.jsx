@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { registerPlayer, createRoom, listPlayers, startGame as startGameAPI, getGameState } from '../utils/multiplayerAPI';
+import { registerPlayer, createRoom, listPlayers, startGame as startGameAPI, getGameState, updateGameState, submitAnswer } from '../utils/multiplayerAPI';
 // Hook para tema
 function useTheme() {
   const [theme, setTheme] = useState(() => {
@@ -195,6 +195,47 @@ export default function MathGame() {
     }
   }, [phase, roomId, isMultiplayer, playerId, isHost, teamId]);
 
+  // Polling en tiempo real para sincronizar estado del juego (multijugador)
+  useEffect(() => {
+    if (!isMultiplayer || phase !== 'playing' || !roomId) return;
+
+    const syncGameState = async () => {
+      try {
+        const response = await getGameState(roomId);
+        if (response.success && response.data) {
+          const state = response.data;
+          
+          // Actualizar posición del balón y scores
+          if (state.ballPosition !== ballPosition) {
+            setBallPosition(state.ballPosition);
+          }
+          if (state.scoreTeamA !== teamScores.A || state.scoreTeamB !== teamScores.B) {
+            setTeamScores({ A: state.scoreTeamA, B: state.scoreTeamB });
+          }
+          
+          // Verificar si hay un ganador
+          if (state.scoreTeamA >= 5) {
+            alert(`🏆 ¡Equipo A gana!`);
+            setPhase('finished');
+            if (soundEnabled) sfx.playWin();
+          } else if (state.scoreTeamB >= 5) {
+            alert(`🏆 ¡Equipo B gana!`);
+            setPhase('finished');
+            if (soundEnabled) sfx.playWin();
+          }
+        }
+      } catch (err) {
+        console.error('Error sincronizando estado:', err);
+      }
+    };
+
+    // Sincronizar cada 2 segundos
+    syncGameState();
+    const interval = setInterval(syncGameState, 2000);
+
+    return () => clearInterval(interval);
+  }, [isMultiplayer, phase, roomId, ballPosition, teamScores, soundEnabled, sfx]);
+
   const currentPlayer = players[turn];
 
   const confettiPieces = useMemo(
@@ -268,7 +309,7 @@ export default function MathGame() {
     if (soundEnabled) sfx.playGameStart();
   };
 
-  const processAnswer = useCallback((isCorrect) => {
+  const processAnswer = useCallback(async (isCorrect) => {
     // MODO MULTIJUGADOR CON EQUIPOS Y BALÓN
     if (isMultiplayer) {
       const currentTeam = ballPosition; // El equipo que tiene el balón
@@ -278,6 +319,13 @@ export default function MathGame() {
         // Respuesta correcta: lanzar balón al otro equipo
         setBallMoving(true);
         if (soundEnabled) sfx.playCorrect();
+        
+        // Actualizar en la base de datos
+        try {
+          await updateGameState(roomId, null, oppositeTeam, teamScores.A, teamScores.B, oppositeTeam);
+        } catch (err) {
+          console.error('Error actualizando estado:', err);
+        }
         
         setTimeout(() => {
           setBallPosition(oppositeTeam);
@@ -296,6 +344,13 @@ export default function MathGame() {
         const newScores = { ...teamScores };
         newScores[oppositeTeam] += 1;
         setTeamScores(newScores);
+        
+        // Actualizar en la base de datos
+        try {
+          await updateGameState(roomId, null, currentTeam, newScores.A, newScores.B, currentTeam);
+        } catch (err) {
+          console.error('Error actualizando estado:', err);
+        }
         
         setTimeout(() => {
           setBallFalling(false);
@@ -1302,21 +1357,194 @@ export default function MathGame() {
           </motion.section>
         ) : (
           <>
-            {/* Turn Indicator Mejorado */}
-            <motion.div
-              className="turn-indicator"
-              key={turn}
-              initial={{ opacity: 0, x: turn === 0 ? -20 : 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              aria-label={`Turno de ${currentPlayer.name}`}
-            >
-              <img
-                src={getAvatarSrc(currentPlayer.avatarId)}
-                alt={`Avatar de ${currentPlayer.name}`}
-                className="turn-avatar-img"
-              />
-              <span>Turno de <strong>{currentPlayer.name}</strong></span>
-            </motion.div>
+            {/* VISTA SEPARADA PARA MULTIJUGADOR */}
+            {isMultiplayer ? (
+              <>
+                {/* VISTA DEL ANFITRIÓN - Solo ve el dashboard */}
+                {isHost ? (
+                  <motion.section
+                    className="host-dashboard"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      padding: '2rem',
+                      textAlign: 'center',
+                      maxWidth: '900px',
+                      margin: '0 auto'
+                    }}
+                  >
+                    <h2 style={{ marginBottom: '2rem', fontSize: '2rem' }}>
+                      🎮 Dashboard del Anfitrión
+                    </h2>
+                    <p style={{ color: '#aaa', marginBottom: '2rem' }}>
+                      Los jugadores están respondiendo desde sus dispositivos
+                    </p>
+                    
+                    {/* Lista de jugadores por equipo */}
+                    <div style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: '1fr 1fr', 
+                      gap: '2rem',
+                      marginBottom: '2rem'
+                    }}>
+                      {/* Jugadores Equipo A */}
+                      <div style={{
+                        background: 'rgba(255,107,157,0.1)',
+                        border: '2px solid rgba(255,107,157,0.3)',
+                        borderRadius: '16px',
+                        padding: '1.5rem'
+                      }}>
+                        <h3 style={{ color: '#FF6B9D', marginBottom: '1rem' }}>🔴 Equipo A</h3>
+                        <p style={{ fontSize: '0.9rem', color: '#aaa' }}>Esperando respuesta...</p>
+                      </div>
+                      
+                      {/* Jugadores Equipo B */}
+                      <div style={{
+                        background: 'rgba(124,107,240,0.1)',
+                        border: '2px solid rgba(124,107,240,0.3)',
+                        borderRadius: '16px',
+                        padding: '1.5rem'
+                      }}>
+                        <h3 style={{ color: '#7C6BF0', marginBottom: '1rem' }}>🔵 Equipo B</h3>
+                        <p style={{ fontSize: '0.9rem', color: '#aaa' }}>Esperando respuesta...</p>
+                      </div>
+                    </div>
+                  </motion.section>
+                ) : (
+                  /* VISTA DEL JUGADOR - Ve el problema y puede responder */
+                  <>
+                    <motion.div
+                      className="player-team-badge"
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      style={{
+                        textAlign: 'center',
+                        marginBottom: '1rem',
+                        padding: '0.75rem',
+                        background: teamId === 'A' ? 'rgba(255,107,157,0.2)' : 'rgba(124,107,240,0.2)',
+                        borderRadius: '12px',
+                        fontSize: '1.2rem',
+                        fontWeight: 'bold',
+                        color: teamId === 'A' ? '#FF6B9D' : '#7C6BF0'
+                      }}
+                    >
+                      {teamId === 'A' ? '🔴 Equipo A' : '🔵 Equipo B'}
+                    </motion.div>
+
+                    {/* Problem Card para Jugador */}
+                    {problem && (
+                      <motion.section
+                        className="problem-card"
+                        key={round}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        aria-label="Problema matemático"
+                      >
+                        {/* Professor gives the problem */}
+                        <div className="problem-header">
+                          <img src={imgGenio2} alt="Profesor" className="professor-img" />
+                          <div className="problem-header-text">
+                            <span className="problem-category">{problem.category}</span>
+                            {problem.prompt && <p className="problem-prompt">{problem.prompt}</p>}
+                          </div>
+                        </div>
+
+                        <div className="problem-equation" tabIndex={0} aria-label="Ecuación a resolver">
+                          <MathDisplay latex={problem.latex} displayMode />
+                        </div>
+
+                        {/* Number input - SIEMPRE mostrar teclado en modo multijugador */}
+                        {problem.inputType === 'number' && !feedback && (
+                          <NumericKeypad
+                            value={input}
+                            onChange={setInput}
+                            onSubmit={handleKeypadSubmit}
+                            aria-label="Teclado numérico en pantalla"
+                          />
+                        )}
+
+                        {/* Multiple choice */}
+                        {problem.inputType === 'choice' && !feedback && (
+                          <div className="choice-list" role="group" aria-label="Opciones de respuesta">
+                            {problem.choices.map((choice, idx) => (
+                              <motion.button
+                                key={idx}
+                                className={`choice-btn ${selectedChoice === idx ? 'selected' : ''}`}
+                                onClick={() => setSelectedChoice(idx)}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                                aria-label={`Opción ${idx + 1}`}
+                              >
+                                <MathDisplay latex={choice.latex} />
+                              </motion.button>
+                            ))}
+                          </div>
+                        )}
+
+                        {problem.inputType === 'choice' && selectedChoice !== null && !feedback && (
+                          <motion.button
+                            className="btn-submit-choice"
+                            onClick={handleChoiceSubmit}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            aria-label="Confirmar respuesta seleccionada"
+                          >
+                            Confirmar
+                          </motion.button>
+                        )}
+
+                        {/* Feedback */}
+                        {feedback && (
+                          <motion.div
+                            className={`feedback-box ${feedback.type}`}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            role="alert"
+                            aria-live="assertive"
+                          >
+                            <div className="feedback-icon">
+                              {feedback.type === 'correct' ? '🎉' : '😅'}
+                            </div>
+                            <div className="feedback-text">
+                              {feedback.type === 'correct' ? (
+                                <span>¡Correcto! 🎊</span>
+                              ) : (
+                                <>
+                                  <p>No es correcto.</p>
+                                  <p className="feedback-correct">
+                                    Respuesta: <MathDisplay latex={feedback.correctAnswer} />
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </motion.section>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              /* VISTA MODO LOCAL (sin cambios) */
+              <>
+                {/* Turn Indicator Mejorado */}
+                <motion.div
+                  className="turn-indicator"
+                  key={turn}
+                  initial={{ opacity: 0, x: turn === 0 ? -20 : 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  aria-label={`Turno de ${currentPlayer.name}`}
+                >
+                  <img
+                    src={getAvatarSrc(currentPlayer.avatarId)}
+                    alt={`Avatar de ${currentPlayer.name}`}
+                    className="turn-avatar-img"
+                  />
+                  <span>Turno de <strong>{currentPlayer.name}</strong></span>
+                </motion.div>
 
             {/* Problem Card Mejorada */}
             {problem && (

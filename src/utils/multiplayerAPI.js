@@ -109,8 +109,16 @@ export async function getAnswers(roomId, problemId) {
 }
 
 // Actualizar estado del juego
-export async function updateGameState(roomId, status, currentProblem, hostId) {
-  const payload = { action: 'updateGameState', roomId, status, currentProblem, hostId };
+export async function updateGameState(roomId, status, ballPosition, scoreTeamA, scoreTeamB, currentTeam) {
+  const payload = { 
+    action: 'updateGameState', 
+    roomId, 
+    status, 
+    ballPosition,
+    scoreTeamA,
+    scoreTeamB,
+    currentTeam
+  };
   const res = await fetch(API_URL, {
     method: 'POST',
     body: JSON.stringify(payload),
