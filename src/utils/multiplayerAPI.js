@@ -46,8 +46,8 @@ export async function registerPlayer(playerId, playerName, avatar, roomId, teamI
 }
 
 // Crear sala multijugador
-export async function createRoom(roomId, roomName, maxPlayers) {
-  const payload = { action: 'createRoom', roomId, roomName, maxPlayers };
+export async function createRoom(roomId, roomName, maxPlayers, difficulty = 'medium', pointsToWin = 5) {
+  const payload = { action: 'createRoom', roomId, roomName, maxPlayers, difficulty, pointsToWin };
   const res = await fetch(API_URL, {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -84,7 +84,7 @@ export async function startGame(roomId, currentProblem, hostId) {
 }
 
 // Enviar respuesta de jugador
-export async function submitAnswer(roomId, problemId, playerId, playerName, teamId, answer, isCorrect, points) {
+export async function submitAnswer(roomId, problemId, playerId, playerName, teamId, answer, isCorrect, points, problemStartTime = null) {
   const payload = { 
     action: 'submitAnswer', 
     roomId, 
@@ -94,7 +94,8 @@ export async function submitAnswer(roomId, problemId, playerId, playerName, team
     teamId, 
     answer, 
     isCorrect,
-    points 
+    points,
+    problemStartTime
   };
   const res = await fetch(API_URL, {
     method: 'POST',
@@ -119,15 +120,11 @@ export async function getAnswers(roomId, problemId) {
 }
 
 // Actualizar estado del juego
-export async function updateGameState(roomId, status, ballPosition, scoreTeamA, scoreTeamB, currentTeam) {
+export async function updateGameState(roomId, updateData) {
   const payload = { 
     action: 'updateGameState', 
-    roomId, 
-    status, 
-    ballPosition,
-    scoreTeamA,
-    scoreTeamB,
-    currentTeam
+    roomId,
+    ...updateData // Permite pasar cualquier combinación de: status, ballPosition, scoreTeamA, scoreTeamB, currentTeam, currentProblem, difficulty, problemStartTime
   };
   const res = await fetch(API_URL, {
     method: 'POST',

@@ -91,6 +91,13 @@ export default function MathGame() {
   const [roomId, setRoomId] = useState('');
   const [isJoiningRoom, setIsJoiningRoom] = useState(false); // true si se unió vía QR
   const [joinRoomId, setJoinRoomId] = useState(''); // ID de sala para unirse manualmente
+  // Variables para multijugador mejorado
+  const [problemTimer, setProblemTimer] = useState(15); // Timer fijo de 15 segundos por problema 
+  const [problemTimeLeft, setProblemTimeLeft] = useState(15);
+  const [problemStartTime, setProblemStartTime] = useState(null);
+  const [connectedPlayers, setConnectedPlayers] = useState([]);
+  const [hasAnswered, setHasAnswered] = useState(false); // Si el jugador actual ya respondió
+
   const [playerId, setPlayerId] = useState(() => localStorage.getItem('playerId') || '');
   const [isHost, setIsHost] = useState(false);
   const [teamId, setTeamId] = useState('A'); // Equipo del jugador ('A' o 'B')
@@ -100,6 +107,14 @@ export default function MathGame() {
   const [ballFalling, setBallFalling] = useState(false); // Si el balón está cayendo
   const [teamScores, setTeamScores] = useState({ A: 0, B: 0 }); // Puntos por equipo
   const [gameStartTime, setGameStartTime] = useState(null); // Tiempo de inicio del juego
+  // Nuevos estados para "primer correcto gana" y puntos configurables
+  const [pointsToWin, setPointsToWin] = useState(5); // Puntos para ganar (configurable por host)
+  const [currentProblemId, setCurrentProblemId] = useState(null); // ID estable del problema activo
+  const [problemStatus, setProblemStatus] = useState('active'); // 'active' o 'solved'
+  const [solvedByTeam, setSolvedByTeam] = useState(null); // Equipo que resolvió
+  const [solvedByPlayer, setSolvedByPlayer] = useState(null); // Jugador que resolvió
+  const [roundWinnerInfo, setRoundWinnerInfo] = useState(null); // { team, player } para UI
+  const processingNewProblemRef = useRef(false); // Evitar doble generación de problema
   const inputRef = useRef(null);
   const fullscreenRef = useRef(null);
   const sfx = useSoundEffects();
@@ -185,8 +200,8 @@ export default function MathGame() {
       
       // Crear la sala (solo si es host)
       if (isHost) {
-        createRoom(roomId, 'Sala de Matemáticas', 100)
-          .then(() => console.log('✅ Sala creada exitosamente'))
+        createRoom(roomId, 'Sala de Matemáticas', 999, difficulty, pointsToWin) // 999 = sin límite
+          .then(() => console.log('✅ Sala creada exitosamente con dificultad:', difficulty))
           .catch(err => console.error('❌ Error creando sala:', err));
       }
       
@@ -233,7 +248,12 @@ export default function MathGame() {
             // Inicializar estado del balón
             setBallPosition(state.ballPosition || 'A');
             setTeamScores({ A: state.scoreTeamA || 0, B: state.scoreTeamB || 0 });
-            
+
+            // Sincronizar pointsToWin y problemId del servidor
+            if (state.pointsToWin) setPointsToWin(Number(state.pointsToWin));
+            if (state.currentProblemId) setCurrentProblemId(state.currentProblemId);
+            setProblemStatus('active');
+
             // Cambiar a fase de juego
             setPhase('playing');
           }
@@ -248,7 +268,7 @@ export default function MathGame() {
     const interval = setInterval(checkGameStart, 2000);
 
     return () => clearInterval(interval);
-  }, [isMultiplayer, phase, roomId, isHost, playerId, teamId, difficulty]);
+  }, [isMultiplayer, phase, roomId, isHost, playerId, teamId, difficulty, pointsToWin]);
 
   // Polling en tiempo real para sincronizar estado del juego (multijugador)
   useEffect(() => {
@@ -281,10 +301,74 @@ export default function MathGame() {
           if (state.scoreTeamA !== teamScores.A || state.scoreTeamB !== teamScores.B) {
             setTeamScores({ A: state.scoreTeamA, B: state.scoreTeamB });
           }
-          
-          // Verificar si hay un ganador (solo si aún no se ha establecido)
-          if ((state.scoreTeamA >= 5 || state.scoreTeamB >= 5) && winner === null) {
-            const winningTeam = state.scoreTeamA >= 5 ? 'A' : 'B';
+
+          // Sincronizar pointsToWin del servidor
+          if (state.pointsToWin && Number(state.pointsToWin) !== pointsToWin) {
+            setPointsToWin(Number(state.pointsToWin));
+          }
+
+          // Detectar cambio de problema por currentProblemId
+          if (state.currentProblemId && state.currentProblemId !== currentProblemId) {
+            setCurrentProblemId(state.currentProblemId);
+            setHasAnswered(false);
+            setProblemStatus('active');
+            setSolvedByTeam(null);
+            setSolvedByPlayer(null);
+            setRoundWinnerInfo(null);
+            setFeedback(null);
+            setInput('');
+            setSelectedChoice(null);
+            processingNewProblemRef.current = false;
+          }
+
+          // Detectar problema resuelto (alguien respondió correctamente)
+          if (state.problemStatus === 'solved' && problemStatus !== 'solved') {
+            setProblemStatus('solved');
+            setSolvedByTeam(state.solvedByTeam);
+            setSolvedByPlayer(state.solvedByPlayer);
+            setRoundWinnerInfo({ team: state.solvedByTeam, player: state.solvedByPlayer });
+
+            // Host: generar siguiente problema después de un delay
+            if (isHost && !processingNewProblemRef.current) {
+              processingNewProblemRef.current = true;
+
+              const newScoreA = Number(state.scoreTeamA) || 0;
+              const newScoreB = Number(state.scoreTeamB) || 0;
+              const ptsToWin = Number(state.pointsToWin) || pointsToWin;
+
+              if (newScoreA >= ptsToWin || newScoreB >= ptsToWin) {
+                // Juego terminado - no generar más problemas
+                processingNewProblemRef.current = false;
+              } else {
+                // Generar siguiente problema después de 2.5s
+                setTimeout(() => {
+                  const nextProblem = generateProblem(difficulty);
+                  const nextProblemId = `prob_${roomId}_${Date.now()}`;
+                  setProblem(nextProblem);
+                  setCurrentProblemId(nextProblemId);
+
+                  updateGameState(roomId, {
+                    currentProblem: JSON.stringify(nextProblem),
+                    currentProblemId: nextProblemId,
+                    problemStatus: 'active',
+                    solvedByTeam: '',
+                    solvedByPlayer: '',
+                    problemStartTime: new Date()
+                  }).then(() => {
+                    processingNewProblemRef.current = false;
+                  }).catch(err => {
+                    console.error('Error generando siguiente problema:', err);
+                    processingNewProblemRef.current = false;
+                  });
+                }, 2500);
+              }
+            }
+          }
+
+          // Verificar si hay un ganador (usando pointsToWin dinámico)
+          const ptsToWin = Number(state.pointsToWin) || pointsToWin;
+          if ((state.scoreTeamA >= ptsToWin || state.scoreTeamB >= ptsToWin) && winner === null) {
+            const winningTeam = state.scoreTeamA >= ptsToWin ? 'A' : 'B';
             
             // Guardar resultados del juego (solo el host)
             if (isHost && gameStartTime) {
@@ -326,7 +410,64 @@ export default function MathGame() {
     const interval = setInterval(syncGameState, 2000);
 
     return () => clearInterval(interval);
-  }, [isMultiplayer, phase, roomId, ballPosition, teamScores, soundEnabled, sfx, isHost, gameStartTime, winner]);
+  }, [isMultiplayer, phase, roomId, ballPosition, teamScores, soundEnabled, sfx, isHost, gameStartTime, winner, pointsToWin, currentProblemId, problemStatus, difficulty]);
+
+  // Timer de 15 segundos para cada problema en multijugador
+  useEffect(() => {
+    if (!isMultiplayer || phase !== 'playing' || !problem) return;
+
+    setProblemTimeLeft(15);
+    setHasAnswered(false);
+    setProblemStatus('active');
+    setRoundWinnerInfo(null);
+    setSolvedByTeam(null);
+    setSolvedByPlayer(null);
+    const startTime = new Date();
+    setProblemStartTime(startTime);
+
+    // Solo el host actualiza el problemStartTime en la base de datos
+    if (isHost) {
+      updateGameState(roomId, { problemStartTime: startTime })
+        .catch(err => console.error('Error actualizando problemStartTime:', err));
+    }
+
+    const interval = setInterval(() => {
+      setProblemTimeLeft(prev => {
+        if (prev <= 1) {
+          // Tiempo agotado - cambiar a siguiente problema
+          if (isHost) {
+            handleTimeUp();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [problem, isMultiplayer, phase, isHost, roomId]);
+
+  // Cargar jugadores conectados en tiempo real (lobby)
+  useEffect(() => {
+    if (!isMultiplayer || phase !== 'lobby' || !roomId) return;
+
+    const loadPlayers = async () => {
+      try {
+        const response = await listPlayers(roomId);
+        if (response.success) {
+          setConnectedPlayers(response.data);
+          console.log('👥 Jugadores conectados:', response.data.length);
+        }
+      } catch (err) {
+        console.error('Error cargando jugadores:', err);
+      }
+    };
+
+    loadPlayers();
+    const interval = setInterval(loadPlayers, 2000); // Actualizar cada 2 segundos
+
+    return () => clearInterval(interval);
+  }, [isMultiplayer, phase, roomId]);
 
   const currentPlayer = players[turn];
 
@@ -402,84 +543,63 @@ export default function MathGame() {
   };
 
   const processAnswer = useCallback(async (isCorrect, userAnswer = '') => {
-    // MODO MULTIJUGADOR CON EQUIPOS Y BALÓN
+    // MODO MULTIJUGADOR CON EQUIPOS - "PRIMER CORRECTO GANA"
     if (isMultiplayer) {
-      const currentTeam = ballPosition; // El equipo que tiene el balón
-      const oppositeTeam = currentTeam === 'A' ? 'B' : 'A';
-      
-      // Mostrar feedback INMEDIATAMENTE (no esperar al Excel)
+      // Mostrar feedback visual inmediato
       setFeedback({ type: isCorrect ? 'correct' : 'wrong', correctAnswer: problem?.answerLatex || '' });
-      
+
       if (isCorrect) {
-        // Respuesta correcta: lanzar balón al otro equipo
-        setBallMoving(true);
         if (soundEnabled) sfx.playCorrect();
-        
-        // Actualizar en la base de datos EN BACKGROUND (no bloquear UI)
-        updateGameState(roomId, null, oppositeTeam, teamScores.A, teamScores.B, oppositeTeam)
-          .catch(err => console.error('Error actualizando estado:', err));
-        
-        setTimeout(() => {
-          setBallPosition(oppositeTeam);
-          setBallMoving(false);
-          setFeedback(null);
-          setRound((r) => r + 1);
-          if (soundEnabled) sfx.playPull();
-        }, 800);
       } else {
-        // Respuesta incorrecta: balón cae, punto para el otro equipo
-        setBallFalling(true);
         if (soundEnabled) sfx.playWrong();
-        
-        const newScores = { ...teamScores };
-        newScores[oppositeTeam] += 1;
-        setTeamScores(newScores);
-        
-        // Actualizar en la base de datos EN BACKGROUND
-        updateGameState(roomId, null, currentTeam, newScores.A, newScores.B, currentTeam)
-          .catch(err => console.error('Error actualizando estado:', err));
-        
-        setTimeout(() => {
-          setBallFalling(false);
-          // El balón vuelve al equipo que falló
-          setBallPosition(currentTeam);
-          setFeedback(null);
-          setRound((r) => r + 1);
-        }, 2000);
-        
-        // Verificar victoria (primer equipo en llegar a 5 puntos)
-        if (newScores[oppositeTeam] >= 5 && winner === null) {
-          setTimeout(() => {
-            setWinner(oppositeTeam); // Establecer ganador ANTES del alert
-            alert(`¡Equipo ${oppositeTeam} gana!`);
-            setPhase('finished');
-            if (soundEnabled) sfx.playWin();
-          }, 2200);
-          return;
-        }
       }
-      
-      // Guardar la respuesta en la base de datos EN BACKGROUND (fire-and-forget)
-      // No usar await para no bloquear la UI
-      const problemId = `prob_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Enviar respuesta al servidor - el servidor decide si es el primer correcto
       const playerName = players[0]?.name || 'Jugador';
-      const points = isCorrect ? 1 : 0;
-      
+
       submitAnswer(
         roomId,
-        problemId,
+        currentProblemId, // ID estable del problema (no aleatorio)
         playerId,
         playerName,
         teamId,
         userAnswer,
         isCorrect,
-        points
-      ).then(() => {
-        console.log('✅ Respuesta guardada en Excel:', { problemId, playerName, teamId, answer: userAnswer, isCorrect });
+        isCorrect ? 1 : 0,
+        problemStartTime
+      ).then((response) => {
+        if (response.success && response.data) {
+          const { isFirstCorrect, alreadySolved } = response.data;
+
+          if (isFirstCorrect) {
+            // ESTE jugador anotó para su equipo
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 1500);
+            setBallMoving(true);
+            setTimeout(() => {
+              setBallPosition(teamId);
+              setBallMoving(false);
+            }, 800);
+          } else if (isCorrect && alreadySolved) {
+            // Correcto pero alguien fue más rápido
+            setFeedback({
+              type: 'late',
+              correctAnswer: problem?.answerLatex || '',
+              message: 'Correcto, pero alguien respondio primero'
+            });
+          }
+        }
       }).catch(err => {
-        console.error('❌ Error guardando respuesta:', err);
+        console.error('Error enviando respuesta:', err);
       });
-      
+
+      // Limpiar feedback para respuestas incorrectas después de un delay
+      if (!isCorrect) {
+        setTimeout(() => {
+          setFeedback(null);
+        }, 2000);
+      }
+
       return; // Salir del callback en modo multijugador
     }
     
@@ -556,20 +676,24 @@ export default function MathGame() {
       setRound((r) => r + 1);
       if (soundEnabled) sfx.playTurnChange();
     }, 2200);
-  }, [ropePos, players, turn, problem, soundEnabled, sfx, stats, isMultiplayer, ballPosition, teamScores, roomId, playerId, teamId]);
+  }, [ropePos, players, turn, problem, soundEnabled, sfx, stats, isMultiplayer, ballPosition, teamScores, roomId, playerId, teamId, currentProblemId, problemStartTime]);
 
   const handleAnswer = (answer, isCorrectChoice = null) => {
-    if (feedback || winner !== null) return; // Prevenir respuestas múltiples
+    if (feedback || winner !== null || hasAnswered) return; // Prevenir respuestas múltiples
     let isCorrect;
     let userAnswer = answer;
     
     if (isCorrectChoice !== null) {
       isCorrect = isCorrectChoice;
-      // Si no hay respuesta de texto, usar el valor booleano como indicador
       userAnswer = answer || (isCorrect ? 'Correcto' : 'Incorrecto');
     } else {
       isCorrect = answer.trim() === problem.answer;
       userAnswer = answer;
+    }
+
+    // En modo multijugador, marcar que ya respondió inmediatamente
+    if (isMultiplayer) {
+      setHasAnswered(true);
     }
     
     processAnswer(isCorrect, userAnswer);
@@ -603,9 +727,35 @@ export default function MathGame() {
 
   const handleTimeUp = useCallback(() => {
     if (feedback || winner !== null) return;
+
+    if (isMultiplayer) {
+      // Solo el host genera nuevo problema cuando termina tiempo
+      if (isHost) {
+        console.log('⏰ Tiempo agotado, generando nuevo problema...');
+        const newProblem = generateProblem(difficulty);
+        const newProblemId = `prob_${roomId}_${Date.now()}`;
+        const problemJSON = JSON.stringify(newProblem);
+
+        setProblem(newProblem);
+        setCurrentProblemId(newProblemId);
+
+        // Actualizar problema en base de datos para sincronizar
+        updateGameState(roomId, {
+          currentProblem: problemJSON,
+          currentProblemId: newProblemId,
+          problemStatus: 'active',
+          solvedByTeam: '',
+          solvedByPlayer: '',
+          problemStartTime: new Date()
+        }).catch(err => console.error('Error actualizando problema:', err));
+      }
+      return;
+    }
+
+    // Modo local
     if (soundEnabled) sfx.playTimeUp();
     processAnswer(false);
-  }, [feedback, winner, processAnswer, soundEnabled, sfx]);
+  }, [feedback, winner, processAnswer, soundEnabled, sfx, isMultiplayer, isHost, difficulty, roomId]);
 
   const resetGame = () => {
     setPhase('menu');
@@ -631,6 +781,14 @@ export default function MathGame() {
     setIsHost(false);
     setIsMultiplayer(false);
     setIsJoiningRoom(false);
+    // Resetear estados de "primer correcto gana"
+    setPointsToWin(5);
+    setCurrentProblemId(null);
+    setProblemStatus('active');
+    setSolvedByTeam(null);
+    setSolvedByPlayer(null);
+    setRoundWinnerInfo(null);
+    processingNewProblemRef.current = false;
   };
 
   // ─── MENU WIZARD ──────────────────────────────────────────
@@ -692,10 +850,20 @@ export default function MathGame() {
       
       // Generar primer problema (solo anfitrión)
       const firstProblem = generateProblem(difficulty);
+      const firstProblemId = `prob_${roomId}_${Date.now()}`;
       const problemJSON = JSON.stringify(firstProblem);
-      
+
       // Llamar a API para iniciar el juego con el problema sincronizado
       await startGameAPI(roomId, problemJSON, playerId);
+
+      // Enviar problemId estable y pointsToWin al servidor
+      await updateGameState(roomId, {
+        currentProblemId: firstProblemId,
+        problemStatus: 'active',
+        solvedByTeam: '',
+        solvedByPlayer: '',
+        pointsToWin: pointsToWin
+      });
       
       // Convertir jugadores del lobby al formato del juego
       const colors = ['#7C6BF0', '#FF6B9D', '#FFD93D', '#6BCB77', '#4D96FF', '#F97316', '#EC4899', '#8B5CF6'];
@@ -711,6 +879,7 @@ export default function MathGame() {
       setPlayers(gamePlayers);
       setStats(gamePlayers.map(() => ({ correct: 0, wrong: 0, maxStreak: 0, currentStreak: 0 })));
       setProblem(firstProblem);
+      setCurrentProblemId(firstProblemId);
       
       // Inicializar estado del balón (empieza en equipo A)
       setBallPosition('A');
@@ -943,18 +1112,18 @@ export default function MathGame() {
                       <motion.div
                         className="option-card"
                         onClick={() => {
-                          // Crear sala nueva
+                          // Crear sala nueva - ir a config del host primero
                           const newRoomId = 'room_' + Date.now();
                           const newPlayerId = playerId || `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                          
+
                           setRoomId(newRoomId);
                           setPlayerId(newPlayerId);
                           setIsHost(true);
                           setIsJoiningRoom(false);
-                          
+
                           localStorage.setItem('playerId', newPlayerId);
-                          
-                          setPhase('lobby');
+
+                          setMenuStep(1.6); // Ir a configuración del anfitrión
                           if (soundEnabled) sfx.playClick();
                         }}
                         whileHover={{ scale: 1.05 }}
@@ -1049,6 +1218,85 @@ export default function MathGame() {
                       whileTap={{ scale: 0.97 }}
                     >
                       ← Atrás
+                    </motion.button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ─ PASO 1.6: Configuración del Anfitrión ─ */}
+              {menuStep === 1.6 && (
+                <motion.div
+                  key="step1.6"
+                  custom={stepDirection}
+                  variants={stepVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.28, ease: 'easeInOut' }}
+                >
+                  <div className="menu-section">
+                    <h2 className="menu-section-title">Configura la Partida</h2>
+                    <p className="menu-section-desc">Solo el anfitrion configura la partida</p>
+
+                    {/* Dificultad */}
+                    <div className="wizard-card" aria-label="Nivel de dificultad">
+                      <p className="wizard-card-title">Dificultad</p>
+                      <input
+                        type="range"
+                        min={1}
+                        max={getMaxDifficulty()}
+                        value={difficulty}
+                        onChange={(e) => setDifficulty(Number(e.target.value))}
+                        className="difficulty-slider"
+                        aria-valuenow={difficulty}
+                        aria-valuemin={1}
+                        aria-valuemax={getMaxDifficulty()}
+                        aria-label="Selector de dificultad"
+                      />
+                      <div className="difficulty-bar">
+                        {Array.from({ length: getMaxDifficulty() }, (_, i) => (
+                          <div
+                            key={i}
+                            className={`difficulty-bar-segment${i < difficulty ? ' filled' : ''}`}
+                            style={{ '--seg-idx': i, '--seg-total': getMaxDifficulty() }}
+                          />
+                        ))}
+                      </div>
+                      <div className="difficulty-info">
+                        <span className="difficulty-number">{difficulty}</span>
+                        <span className="difficulty-name">{DIFFICULTY_LABELS[difficulty - 1]}</span>
+                      </div>
+                    </div>
+
+                    {/* Puntos para ganar */}
+                    <div className="wizard-card" aria-label="Puntos para ganar">
+                      <p className="wizard-card-title">Puntos para ganar</p>
+                      <div className="timer-presets">
+                        {[3, 5, 7, 10].map((pts) => (
+                          <button
+                            key={pts}
+                            className={`preset-btn${pointsToWin === pts ? ' active' : ''}`}
+                            onClick={() => { setPointsToWin(pts); if (soundEnabled) sfx.playClick(); }}
+                            aria-label={`${pts} puntos`}
+                          >
+                            {pts}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="wizard-nav wizard-nav--between">
+                    <button className="wizard-btn-prev" onClick={() => { setMenuStep(1.5); if (soundEnabled) sfx.playClick(); }}>
+                      Atras
+                    </button>
+                    <motion.button
+                      className="wizard-btn-next"
+                      onClick={() => { setPhase('lobby'); if (soundEnabled) sfx.playClick(); }}
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      Crear Sala
                     </motion.button>
                   </div>
                 </motion.div>
@@ -1392,7 +1640,7 @@ export default function MathGame() {
         {isMultiplayer && phase === 'playing' && (
           <div style={{marginRight:16,display:'flex',alignItems:'center',gap:8}}>
             <span style={{fontWeight:700,color:'var(--purple-main)'}}>🎯</span>
-            <span style={{fontWeight:600,color:'var(--text-primary)',fontSize:'0.9rem'}}>Meta: 10 puntos</span>
+            <span style={{fontWeight:600,color:'var(--text-primary)',fontSize:'0.9rem'}}>Meta: {pointsToWin} puntos</span>
           </div>
         )}
         <button
@@ -1770,6 +2018,35 @@ export default function MathGame() {
                         </p>
                       </motion.div>
                     )}
+
+                    {/* Mostrar quién anotó */}
+                    {problemStatus === 'solved' && roundWinnerInfo && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        style={{
+                          marginBottom: '2rem',
+                          padding: '1.5rem',
+                          background: roundWinnerInfo.team === 'A'
+                            ? 'rgba(255,107,157,0.15)' : 'rgba(124,107,240,0.15)',
+                          border: `2px solid ${roundWinnerInfo.team === 'A' ? '#FF6B9D' : '#7C6BF0'}`,
+                          borderRadius: '12px',
+                          textAlign: 'center',
+                          fontSize: '1.2rem',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+                          {roundWinnerInfo.team === 'A' ? 'Equipo A' : 'Equipo B'} anoto!
+                        </div>
+                        <div style={{ color: '#aaa', fontSize: '0.9rem' }}>
+                          {roundWinnerInfo.player} respondio correctamente
+                        </div>
+                        <div style={{ color: '#888', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                          Siguiente problema en breve...
+                        </div>
+                      </motion.div>
+                    )}
                     
                     {/* Lista de jugadores por equipo */}
                     <div style={{ 
@@ -1821,6 +2098,52 @@ export default function MathGame() {
                           margin: '0 auto'
                         }}
                       >
+                        {/* Timer de 15 segundos para multijugador */}
+                        {isMultiplayer && (
+                          <div style={{
+                            textAlign: 'center',
+                            marginBottom: '1.5rem',
+                            padding: '0.8rem',
+                            background: problemTimeLeft <= 5 ? 'rgba(255,107,157,0.2)' : 'rgba(124,107,240,0.1)',
+                            borderRadius: '8px',
+                            border: `2px solid ${problemTimeLeft <= 5 ? '#FF6B9D' : '#7C6BF0'}`,
+                            fontSize: '1.2rem',
+                            fontWeight: 'bold',
+                            color: problemTimeLeft <= 5 ? '#FF6B9D' : '#7C6BF0'
+                          }}>
+                            ⏱️ {problemTimeLeft}s {hasAnswered && '✅ Respondido'}
+                          </div>
+                        )}
+
+                        {/* Mostrar quién anotó en este round */}
+                        {problemStatus === 'solved' && roundWinnerInfo && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            style={{
+                              textAlign: 'center',
+                              padding: '1.5rem',
+                              marginBottom: '1rem',
+                              background: roundWinnerInfo.team === 'A'
+                                ? 'rgba(255,107,157,0.2)' : 'rgba(124,107,240,0.2)',
+                              border: `2px solid ${roundWinnerInfo.team === 'A' ? '#FF6B9D' : '#7C6BF0'}`,
+                              borderRadius: '12px',
+                              fontSize: '1.1rem',
+                              fontWeight: 'bold'
+                            }}
+                          >
+                            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>
+                              {roundWinnerInfo.team === 'A' ? 'Equipo A' : 'Equipo B'} anoto!
+                            </div>
+                            <div style={{ color: '#aaa', fontSize: '0.9rem' }}>
+                              {roundWinnerInfo.player} respondio correctamente
+                            </div>
+                            <div style={{ color: '#888', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                              Siguiente problema en breve...
+                            </div>
+                          </motion.div>
+                        )}
+
                         {/* Ecuación más grande y centrada */}
                         <div style={{ 
                           textAlign: 'center',
@@ -1838,7 +2161,7 @@ export default function MathGame() {
                         </div>
 
                         {/* Number input - Teclado más grande */}
-                        {problem.inputType === 'number' && !feedback && (
+                        {problem.inputType === 'number' && !feedback && !hasAnswered && problemStatus === 'active' && (
                           <div style={{ marginTop: '1.5rem' }}>
                             <NumericKeypad
                               value={input}
@@ -1850,7 +2173,7 @@ export default function MathGame() {
                         )}
 
                         {/* Multiple choice - Botones optimizados para móvil */}
-                        {problem.inputType === 'choice' && !feedback && (
+                        {problem.inputType === 'choice' && !feedback && !hasAnswered && problemStatus === 'active' && (
                           <div style={{ 
                             display: 'flex', 
                             flexDirection: 'column', 
@@ -1896,27 +2219,31 @@ export default function MathGame() {
                             style={{
                               marginTop: '2rem',
                               padding: '2rem',
-                              background: feedback.type === 'correct' 
+                              background: feedback.type === 'correct'
                                 ? 'linear-gradient(135deg, rgba(107, 203, 119, 0.2) 0%, rgba(107, 203, 119, 0.05) 100%)'
+                                : feedback.type === 'late'
+                                ? 'linear-gradient(135deg, rgba(255, 193, 7, 0.2) 0%, rgba(255, 193, 7, 0.05) 100%)'
                                 : 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.05) 100%)',
-                              border: `3px solid ${feedback.type === 'correct' ? '#6BCB77' : '#ef4444'}`,
+                              border: `3px solid ${feedback.type === 'correct' ? '#6BCB77' : feedback.type === 'late' ? '#FFC107' : '#ef4444'}`,
                               borderRadius: '16px',
                               textAlign: 'center',
                               fontSize: '1.5rem',
                               fontWeight: 'bold',
-                              color: feedback.type === 'correct' ? '#6BCB77' : '#ef4444'
+                              color: feedback.type === 'correct' ? '#6BCB77' : feedback.type === 'late' ? '#FFC107' : '#ef4444'
                             }}
                           >
                             <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>
-                              {feedback.type === 'correct' ? '🎉' : '😅'}
+                              {feedback.type === 'correct' ? '🎉' : feedback.type === 'late' ? '⏱️' : '😅'}
                             </div>
                             <div>
                               {feedback.type === 'correct' ? (
-                                <span>¡Correcto! 🎊</span>
+                                <span>Correcto!</span>
+                              ) : feedback.type === 'late' ? (
+                                <span>{feedback.message}</span>
                               ) : (
                                 <>
                                   <p style={{ marginBottom: '1rem' }}>No es correcto</p>
-                                  <div style={{ 
+                                  <div style={{
                                     fontSize: '1.2rem',
                                     padding: '1rem',
                                     background: 'rgba(0,0,0,0.2)',
