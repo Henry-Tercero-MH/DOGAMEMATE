@@ -324,10 +324,7 @@ export default function MathGame() {
             }
             
             setWinner(winningTeam); // Actualizar estado del ganador
-            // Solo mostrar alert al host para evitar spam
-            if (isHost) {
-              alert(`🏆 ¡Equipo ${winningTeam} gana!`);
-            }
+            // Eliminamos el alert tedioso - la UI ya muestra el ganador claramente
             setPhase('finished');
             if (soundEnabled) sfx.playWin();
           }
@@ -1831,46 +1828,9 @@ export default function MathGame() {
                     </div>
                   </motion.section>
                 ) : (
-                  /* VISTA DEL JUGADOR - Ve el problema y puede responder */
+                  /* VISTA DEL JUGADOR - SOLO problema y opciones */
                   <>
-                    {/* Badge del equipo más grande y visible */}
-                    <motion.div
-                      initial={{ opacity: 0, y: -20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      style={{
-                        textAlign: 'center',
-                        marginBottom: '1.5rem',
-                        padding: '1rem 1.5rem',
-                        background: teamId === 'A' ? 'linear-gradient(135deg, rgba(255,107,157,0.3) 0%, rgba(255,107,157,0.1) 100%)' : 'linear-gradient(135deg, rgba(124,107,240,0.3) 0%, rgba(124,107,240,0.1) 100%)',
-                        border: `3px solid ${teamId === 'A' ? '#FF6B9D' : '#7C6BF0'}`,
-                        borderRadius: '16px',
-                        fontSize: '1.8rem',
-                        fontWeight: 'bold',
-                        color: teamId === 'A' ? '#FF6B9D' : '#7C6BF0',
-                        boxShadow: `0 8px 24px ${teamId === 'A' ? 'rgba(255,107,157,0.3)' : 'rgba(124,107,240,0.3)'}`
-                      }}
-                    >
-                      {teamId === 'A' ? '🔴 Equipo A' : '🔵 Equipo B'}
-                    </motion.div>
-
-                    {/* Scoreboard visible para el jugador */}
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'center', 
-                      gap: '2rem', 
-                      marginBottom: '2rem',
-                      fontSize: '1.5rem',
-                      fontWeight: 'bold'
-                    }}>
-                      <div style={{ color: '#FF6B9D' }}>
-                        🔴 {teamScores.A}
-                      </div>
-                      <div style={{ color: '#7C6BF0' }}>
-                        🔵 {teamScores.B}
-                      </div>
-                    </div>
-
-                    {/* Problem Card para Jugador - Simplificado y más grande */}
+                    {/* Problem Card para Jugador - Solo el problema matemático */}
                     {problem && (
                       <motion.section
                         key={round}
@@ -1882,7 +1842,9 @@ export default function MathGame() {
                           borderRadius: '20px',
                           padding: '2rem 1.5rem',
                           boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-                          border: '2px solid rgba(255,255,255,0.1)'
+                          border: '2px solid rgba(255,255,255,0.1)',
+                          maxWidth: '100%',
+                          margin: '0 auto'
                         }}
                       >
                         {/* Ecuación más grande y centrada */}
