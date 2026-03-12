@@ -121,37 +121,30 @@ export default function MathGame() {
     }
   }, []); // Solo al montar el componente
 
-  // Restaurar estado del juego desde localStorage al recargar
+  // Restaurar solo playerId desde localStorage (NO sala para evitar reconexiones problemáticas)
   useEffect(() => {
-    const gameState = localStorage.getItem('gameState');
-    if (gameState) {
-      try {
-        const { roomId: savedRoomId, playerId: savedPlayerId, isHost: savedIsHost, teamId: savedTeamId, phase: savedPhase } = JSON.parse(gameState);
-        if (savedRoomId && savedPlayerId) {
-          console.log('🔄 Restaurando estado del juego:', { savedRoomId, savedPlayerId, savedIsHost, savedTeamId });
-          
-          // Detectar si se está uniendo via URL/QR
-          const urlParams = new URLSearchParams(window.location.search);
-          const isJoiningViaURL = !!(urlParams.get('roomId') && urlParams.get('teamId'));
-          
-          console.log('👤 Determinando rol:', { isJoiningViaURL, savedIsHost, finalIsHost: isJoiningViaURL ? false : (savedIsHost || false) });
-          
-          setRoomId(savedRoomId);
-          setPlayerId(savedPlayerId);
-          // CRUCIAL: Si se une via URL/QR, NUNCA debe ser anfitrión, ignore localStorage
-          setIsHost(isJoiningViaURL ? false : (savedIsHost || false));
-          setTeamId(savedTeamId || 'A');
-          setIsMultiplayer(true);
-          if (savedPhase === 'lobby' || savedPhase === 'playing') {
-            setPhase(savedPhase);
+    // Solo restaurar playerId si no hay roomId en URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlRoomId = urlParams.get('roomId');
+    
+    if (!urlRoomId) {
+      const gameState = localStorage.getItem('gameState');
+      if (gameState) {
+        try {
+          const { playerId: savedPlayerId } = JSON.parse(gameState);
+          if (savedPlayerId && !playerId) {
+            console.log('🔄 Restaurando solo playerId:', savedPlayerId);
+            setPlayerId(savedPlayerId);
           }
+        } catch (err) {
+          console.error('Error restaurando playerId:', err);
         }
-      } catch (err) {
-        console.error('Error restaurando estado:', err);
-        localStorage.removeItem('gameState');
       }
     }
-  }, []);
+    
+    // Limpiar estado de sala anterior para evitar reconexiones problemáticas
+    localStorage.removeItem('gameState');
+  }, [playerId]);
 
   // Sonido de menú al entrar en el menú
   useEffect(() => {
@@ -219,14 +212,8 @@ export default function MathGame() {
           if (state.status === 'playing') {
             console.log('🎮 El host ha iniciado el juego, cambiando a modo playing...');
             
-            // Actualizar localStorage
-            localStorage.setItem('gameState', JSON.stringify({
-              roomId,
-              playerId,
-              isHost: false,
-              teamId,
-              phase: 'playing'
-            }));
+            // Solo guardar playerId, NO estado de sala para evitar reconexiones problemáticas
+            localStorage.setItem('playerId', playerId);
             
             // Usar problema sincronizado del servidor
             if (state.currentProblem) {
@@ -637,6 +624,13 @@ export default function MathGame() {
       { correct: 0, wrong: 0, maxStreak: 0, currentStreak: 0 },
       { correct: 0, wrong: 0, maxStreak: 0, currentStreak: 0 },
     ]);
+    
+    // Limpiar localStorage para evitar reconexiones problemáticas
+    localStorage.removeItem('gameState');
+    setRoomId('');
+    setIsHost(false);
+    setIsMultiplayer(false);
+    setIsJoiningRoom(false);
   };
 
   // ─── MENU WIZARD ──────────────────────────────────────────
@@ -668,15 +662,8 @@ export default function MathGame() {
       setIsJoiningRoom(true); // Sí se está uniendo vía ID manual
       setTeamId('A'); // Equipo por defecto (se puede cambiar después)
       
-      // Guardar en localStorage
+      // Solo guardar playerId, NO estado de sala 
       localStorage.setItem('playerId', newPlayerId);
-      localStorage.setItem('gameState', JSON.stringify({
-        roomId: joinRoomId,
-        playerId: newPlayerId,
-        isHost: false,
-        teamId: 'A',
-        phase: 'lobby'
-      }));
       
       setPhase('lobby');
       if (soundEnabled) sfx.playClick();
@@ -734,14 +721,8 @@ export default function MathGame() {
       // Guardar tiempo de inicio del juego
       setGameStartTime(new Date());
       
-      // Actualizar localStorage
-      localStorage.setItem('gameState', JSON.stringify({
-        roomId,
-        playerId,
-        isHost,
-        teamId,
-        phase: 'playing'
-      }));
+      // Solo guardar playerId, NO estado de sala 
+      localStorage.setItem('playerId', playerId);
       
       setPhase('playing');
     } catch (err) {
@@ -972,13 +953,6 @@ export default function MathGame() {
                           setIsJoiningRoom(false);
                           
                           localStorage.setItem('playerId', newPlayerId);
-                          localStorage.setItem('gameState', JSON.stringify({
-                            roomId: newRoomId,
-                            playerId: newPlayerId,
-                            isHost: true,
-                            teamId: 'A',
-                            phase: 'lobby'
-                          }));
                           
                           setPhase('lobby');
                           if (soundEnabled) sfx.playClick();
