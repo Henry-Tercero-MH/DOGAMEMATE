@@ -86,7 +86,7 @@ html, body, #root {
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, #f8ffae 0%, #43c6ac 100%);
-  overflow: hidden;
+  overflow: auto;
   box-sizing: border-box;
   min-height: 100vh;
   min-width: 100vw;
@@ -1494,6 +1494,8 @@ html, body, #root {
 @media (max-width: 768px) {
   .game-screen {
     padding: 12px 8px;
+    justify-content: flex-start;
+    overflow-y: auto;
   }
 
   .menu-container {
@@ -1504,6 +1506,9 @@ html, body, #root {
   .game-container {
     max-width: 98vw;
     padding: 14px 12px;
+    min-height: auto;
+    height: auto;
+    flex: none;
   }
 
   .top-bar {
@@ -1525,6 +1530,9 @@ html, body, #root {
 @media (max-width: 480px) {
   .game-screen {
     padding: 8px 4px;
+    justify-content: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .menu-container {
@@ -1538,6 +1546,9 @@ html, body, #root {
     max-width: 100vw;
     padding: 10px 8px;
     border-radius: 16px;
+    min-height: auto;
+    height: auto;
+    flex: none;
   }
 
   .top-bar {
@@ -1579,6 +1590,17 @@ html, body, #root {
   
   .choice-btn .math-display {
     font-size: 1.2rem !important;
+  }
+  
+  /* Asegurar que las opciones sean completamente visibles en móvil */
+  .choices-grid {
+    margin-bottom: 2rem !important;
+  }
+  
+  /* Contenedor de problema para garantizar espacio suficiente */
+  section {
+    margin-bottom: 1.5rem !important;
+    max-height: none !important;
   }
 
   .problem-equation .math-display {
